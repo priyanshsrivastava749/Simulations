@@ -1,0 +1,591 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Magnetic Null Points Simulation</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: #050510;
+            font-family: 'Inter', sans-serif;
+        }
+
+        #canvas-container {
+            width: 100vw;
+            height: 100vh;
+            display: block;
+        }
+
+        #ui-panel {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            width: 300px;
+            background: rgba(20, 20, 35, 0.9);
+            backdrop-filter: blur(10px);
+            padding: 20px;
+            border-radius: 12px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            color: white;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+            max-height: 90vh;
+            overflow-y: auto;
+        }
+
+        h2 {
+            margin: 0 0 15px 0;
+            font-size: 1.2rem;
+            color: #4facfe;
+            text-align: center;
+        }
+
+        h3 {
+            margin: 15px 0 5px 0;
+            font-size: 0.95rem;
+            color: #ccc;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            padding-bottom: 5px;
+        }
+
+        .control-group {
+            margin-bottom: 15px;
+        }
+
+        .label-row {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 5px;
+            font-size: 0.85rem;
+        }
+
+        input[type=range] {
+            width: 100%;
+            cursor: pointer;
+        }
+
+        .btn-group {
+            display: flex;
+            gap: 10px;
+            margin-top: 10px;
+        }
+
+        button {
+            flex: 1;
+            padding: 8px;
+            border: none;
+            border-radius: 6px;
+            background: #4facfe;
+            color: white;
+            cursor: pointer;
+            font-weight: 600;
+            transition: background 0.2s;
+        }
+
+        button:hover {
+            background: #007bff;
+        }
+
+        button.secondary {
+            background: #444;
+        }
+
+        button.secondary:hover {
+            background: #555;
+        }
+
+        .legend {
+            margin-top: 15px;
+            font-size: 0.8rem;
+            color: #aaa;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            margin-bottom: 5px;
+        }
+
+        .dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+
+        .footer-credits {
+            text-align: center;
+            font-size: 0.85rem;
+            color: #4facfe;
+            margin-top: 20px;
+            padding-top: 10px;
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        /* Mobile Bottom Sheet */
+        @media (max-width: 768px) {
+            #ui-panel {
+                top: auto;
+                bottom: 0;
+                right: 0;
+                left: 0;
+                width: 100%;
+                border-radius: 12px 12px 0 0;
+                max-height: 50vh;
+                box-sizing: border-box;
+            }
+        }
+
+        #loading {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: #000;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            transition: opacity 0.5s ease;
+        }
+
+        #loading h1 {
+            color: #4facfe;
+            font-size: 2rem;
+            margin-bottom: 1rem;
+        }
+
+        .spinner {
+            width: 40px;
+            height: 40px;
+            border: 4px solid #333;
+            border-top: 4px solid #4facfe;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% {
+                transform: rotate(0deg);
+            }
+
+            100% {
+                transform: rotate(360deg);
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+    <div id="loading">
+        <h1>Created by Priyansh</h1>
+        <div class="spinner"></div>
+        <p style="color: #666; margin-top: 10px;">Initializing Physics Engine...</p>
+    </div>
+
+    <div id="canvas-container"></div>
+
+    <div id="ui-panel">
+        <h2>Magnet Interaction</h2>
+
+        <h3>Magnet 1 (Left)</h3>
+        <div class="control-group">
+            <div class="label-row"><span>Position X</span><span id="m1-pos-val">-5</span></div>
+            <input type="range" id="m1-pos" min="-10" max="-2" step="0.1" value="-5">
+        </div>
+        <div class="control-group">
+            <div class="label-row"><span>Rotation (Angle)</span><span id="m1-rot-val">0°</span></div>
+            <input type="range" id="m1-rot" min="0" max="360" step="5" value="0">
+        </div>
+
+        <h3>Magnet 2 (Right)</h3>
+        <div class="control-group">
+            <div class="label-row"><span>Position X</span><span id="m2-pos-val">5</span></div>
+            <input type="range" id="m2-pos" min="2" max="10" step="0.1" value="5">
+        </div>
+        <div class="control-group">
+            <div class="label-row"><span>Rotation (Angle)</span><span id="m2-rot-val">0°</span></div>
+            <input type="range" id="m2-rot" min="0" max="360" step="5" value="0">
+        </div>
+
+        <h3>Visualization</h3>
+        <div class="control-group">
+            <label class="label-row">
+                <span>Show Field Lines</span>
+                <input type="checkbox" id="show-field" checked>
+            </label>
+        </div>
+        <div class="control-group">
+            <label class="label-row">
+                <span>Show Null Points</span>
+                <input type="checkbox" id="show-null" checked>
+            </label>
+        </div>
+
+        <div class="btn-group">
+            <button onclick="resetSim()">Reset</button>
+            <button class="secondary" onclick="flipPoles()">Flip Poles</button>
+        </div>
+
+        <div class="legend">
+            <div class="legend-item">
+                <div class="dot" style="background:red"></div>North Pole
+            </div>
+            <div class="legend-item">
+                <div class="dot" style="background:blue"></div>South Pole
+            </div>
+            <div class="legend-item">
+                <div class="dot" style="background:#ffff00; box-shadow: 0 0 5px yellow;"></div>Null Point Area
+            </div>
+        </div>
+
+        <div class="footer-credits">Simulation by Priyansh</div>
+    </div>
+
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://cdnjs.cloudflare.com/ajax/libs/three.js/0.160.0/three.module.min.js",
+                "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+            }
+        }
+    </script>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+        // --- CONSTANTS ---
+        const MAGNET_LENGTH = 4;
+        const MAGNET_WIDTH = 1;
+        const MAGNET_HEIGHT = 1;
+        const DIPOLE_MOMENT = 100; // Strength
+
+        // --- STATE ---
+        const state = {
+            m1: { x: -5, angle: 0 },
+            m2: { x: 5, angle: 0 },
+            showField: true,
+            showNull: true
+        };
+
+        // --- SCENE SETUP ---
+        const container = document.getElementById('canvas-container');
+        const scene = new THREE.Scene();
+        scene.fog = new THREE.FogExp2(0x050510, 0.02);
+
+        const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
+        camera.position.set(0, 15, 15);
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(window.devicePixelRatio);
+        container.appendChild(renderer.domElement);
+
+        const controls = new OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+
+        const ambientLight = new THREE.AmbientLight(0x404040, 2);
+        scene.add(ambientLight);
+        const dirLight = new THREE.DirectionalLight(0xffffff, 2);
+        dirLight.position.set(5, 10, 7);
+        scene.add(dirLight);
+
+        // --- OBJECTS ---
+        const magnetGroup = new THREE.Group();
+        scene.add(magnetGroup);
+
+        const linesGroup = new THREE.Group();
+        scene.add(linesGroup);
+
+        const nullPointsGroup = new THREE.Group();
+        scene.add(nullPointsGroup);
+
+        // Helper to create magnet mesh
+        function createMagnetMesh() {
+            const group = new THREE.Group();
+            const geometry = new THREE.BoxGeometry(MAGNET_LENGTH / 2, MAGNET_HEIGHT, MAGNET_WIDTH);
+
+            // South Pole (Blue) - Left half relative to local center? 
+            // Standard Bar Magnet: S -- N
+            // Let's say local -x is S, +x is N.
+
+            const southMat = new THREE.MeshStandardMaterial({ color: 0x0000ff, roughness: 0.4, metalness: 0.3 });
+            const northMat = new THREE.MeshStandardMaterial({ color: 0xff0000, roughness: 0.4, metalness: 0.3 });
+
+            const southMesh = new THREE.Mesh(geometry, southMat);
+            southMesh.position.x = -MAGNET_LENGTH / 4;
+
+            const northMesh = new THREE.Mesh(geometry, northMat);
+            northMesh.position.x = MAGNET_LENGTH / 4;
+
+            group.add(southMesh);
+            group.add(northMesh);
+
+            // Label N/S
+            // (Skipped for simplicity, colors denote poles)
+
+            return group;
+        }
+
+        const magnet1 = createMagnetMesh();
+        const magnet2 = createMagnetMesh();
+        magnetGroup.add(magnet1);
+        magnetGroup.add(magnet2);
+
+        // --- PHYSICS CORE ---
+
+        // Get Dipole Moment Vector for a magnet
+        function getDipole(magnet, angleRad) {
+            // Moment points S -> N. In our local mesh, it's -x to +x.
+            // Rotated by angle about Y.
+            const m = new THREE.Vector3(1, 0, 0); // Local direction
+            m.applyAxisAngle(new THREE.Vector3(0, 1, 0), angleRad);
+            m.multiplyScalar(DIPOLE_MOMENT);
+            return { pos: magnet.position.clone(), m: m };
+        }
+
+        // Calculate B field at point p from a dipole at center with moment m
+        // B(r) = (mu0 / 4pi) * (3(m.r)r - m*r^2) / r^5
+        // We assume units where mu0/4pi = 1
+        function calculateDipoleField(p, dipole) {
+            const rVec = new THREE.Vector3().subVectors(p, dipole.pos);
+            const r = rVec.length();
+            if (r < 0.5) return new THREE.Vector3(0, 0, 0); // Inside magnet approximation
+
+            const mDotR = dipole.m.dot(rVec);
+
+            // Term 1: 3(m.r)r
+            const term1 = rVec.clone().multiplyScalar(3 * mDotR);
+            // Term 2: m * r^2
+            const term2 = dipole.m.clone().multiplyScalar(r * r);
+
+            const B = new THREE.Vector3().subVectors(term1, term2);
+            B.divideScalar(Math.pow(r, 5));
+
+            return B;
+        }
+
+        function getNetBField(p) {
+            const d1 = getDipole(magnet1, -state.m1.angle * Math.PI / 180); // Negative for correct rotation feel?
+            // Actually Threejs Y-rotation: positive is counter-clockwise seen from top.
+            // Let's stick to standard.
+            const rad1 = -state.m1.angle * Math.PI / 180;
+            const rad2 = -state.m2.angle * Math.PI / 180;
+
+            const dip1 = getDipole(magnet1, rad1);
+            const dip2 = getDipole(magnet2, rad2);
+
+            const b1 = calculateDipoleField(p, dip1);
+            const b2 = calculateDipoleField(p, dip2);
+
+            return b1.add(b2);
+        }
+
+        // --- VISUALIZATION ---
+
+        function updateMagnets() {
+            magnet1.position.set(state.m1.x, 0, 0);
+            magnet1.rotation.y = -state.m1.angle * Math.PI / 180;
+
+            magnet2.position.set(state.m2.x, 0, 0);
+            magnet2.rotation.y = -state.m2.angle * Math.PI / 180;
+        }
+
+        function drawFieldLines() {
+            while (linesGroup.children.length > 0) linesGroup.remove(linesGroup.children[0]);
+            if (!state.showField) return;
+
+            // Generate seed points around both magnets
+            const seeds = [];
+            const r = MAGNET_LENGTH * 0.4; // Slightly outside
+
+            [magnet1, magnet2].forEach(mag => {
+                // 3 rings of seeds
+                for (let ring = 0; ring < 3; ring++) {
+                    const count = 8;
+                    const ringR = 0.5 + ring * 0.3;
+                    for (let i = 0; i < count; i++) {
+                        const theta = (i / count) * Math.PI * 2;
+                        const localP = new THREE.Vector3(
+                            Math.cos(theta) * ringR,
+                            (Math.random() - 0.5) * 0.5, // Randomize height slightly
+                            Math.sin(theta) * ringR
+                        );
+                        // Add some x-offset to cover 'poles'
+                        localP.x += (i % 2 == 0 ? 1 : -1) * MAGNET_LENGTH / 2.2;
+
+                        localP.applyMatrix4(mag.matrixWorld);
+                        seeds.push(localP);
+                    }
+                }
+            });
+
+            seeds.forEach(seed => {
+                const points = [];
+                let curr = seed.clone();
+                points.push(curr.clone());
+
+                // Trace forward
+                for (let i = 0; i < 50; i++) {
+                    const B = getNetBField(curr);
+                    if (B.lengthSq() < 0.001) break;
+                    B.normalize().multiplyScalar(0.5);
+                    curr.add(B);
+                    points.push(curr.clone());
+                    if (curr.length() > 20) break; // Bounds
+                    // Check if hit magnet
+                    if (curr.distanceTo(magnet1.position) < 1 || curr.distanceTo(magnet2.position) < 1) break;
+                }
+
+                // Trace backward
+                curr = seed.clone();
+                const backPoints = [];
+                for (let i = 0; i < 50; i++) {
+                    const B = getNetBField(curr);
+                    if (B.lengthSq() < 0.001) break;
+                    B.normalize().multiplyScalar(-0.5);
+                    curr.add(B);
+                    backPoints.push(curr.clone());
+                    if (curr.length() > 20) break;
+                    if (curr.distanceTo(magnet1.position) < 1 || curr.distanceTo(magnet2.position) < 1) break;
+                }
+
+                const finalPoints = [...backPoints.reverse(), ...points];
+                const geom = new THREE.BufferGeometry().setFromPoints(finalPoints);
+                const mat = new THREE.LineBasicMaterial({ color: 0x55aaff, opacity: 0.4, transparent: true });
+                linesGroup.add(new THREE.Line(geom, mat));
+            });
+        }
+
+        function findNullPoints() {
+            while (nullPointsGroup.children.length > 0) nullPointsGroup.remove(nullPointsGroup.children[0]);
+            if (!state.showNull) return;
+
+            // Scan a grid in the XZ plane (y=0)
+            const rangeX = 15;
+            const rangeZ = 10;
+            const step = 0.5;
+
+            const geometry = new THREE.SphereGeometry(0.2, 8, 8);
+            const material = new THREE.MeshBasicMaterial({ color: 0xffff00, transparent: true, opacity: 0.8 });
+
+            for (let x = -rangeX; x <= rangeX; x += step) {
+                for (let z = -rangeZ; z <= rangeZ; z += step) {
+                    // Check B field magnitude
+                    const p = new THREE.Vector3(x, 0, z);
+
+                    // Skip if inside magnets
+                    if (p.distanceTo(magnet1.position) < 2 || p.distanceTo(magnet2.position) < 2) continue;
+
+                    const B = getNetBField(p);
+                    // Threshold for "Null Point" visual
+                    if (B.length() < 0.1) { // Tunable threshold
+                        const dot = new THREE.Mesh(geometry, material);
+                        dot.position.copy(p);
+                        nullPointsGroup.add(dot);
+                    }
+                }
+            }
+        }
+
+        // --- LOOP ---
+        function update() {
+            updateMagnets();
+            drawFieldLines();
+            findNullPoints();
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            controls.update();
+            renderer.render(scene, camera);
+        }
+
+        // --- INIT & UI EVENTS ---
+
+        // Initial delayed start
+        setTimeout(() => {
+            update();
+            document.getElementById('loading').style.opacity = '0';
+            setTimeout(() => document.getElementById('loading').style.display = 'none', 500);
+            animate();
+        }, 1000);
+
+        // UI Listeners
+        document.getElementById('m1-pos').addEventListener('input', (e) => {
+            state.m1.x = parseFloat(e.target.value);
+            document.getElementById('m1-pos-val').innerText = state.m1.x;
+            update();
+        });
+        document.getElementById('m1-rot').addEventListener('input', (e) => {
+            state.m1.angle = parseFloat(e.target.value);
+            document.getElementById('m1-rot-val').innerText = state.m1.angle + "°";
+            update();
+        });
+
+        document.getElementById('m2-pos').addEventListener('input', (e) => {
+            state.m2.x = parseFloat(e.target.value);
+            document.getElementById('m2-pos-val').innerText = state.m2.x;
+            update();
+        });
+        document.getElementById('m2-rot').addEventListener('input', (e) => {
+            state.m2.angle = parseFloat(e.target.value);
+            document.getElementById('m2-rot-val').innerText = state.m2.angle + "°";
+            update();
+        });
+
+        document.getElementById('show-field').addEventListener('change', (e) => {
+            state.showField = e.target.checked;
+            update();
+        });
+        document.getElementById('show-null').addEventListener('change', (e) => {
+            state.showNull = e.target.checked;
+            update();
+        });
+
+        // Global Funcs for buttons
+        window.resetSim = () => {
+            state.m1.x = -5; state.m1.angle = 0;
+            state.m2.x = 5; state.m2.angle = 0;
+
+            document.getElementById('m1-pos').value = -5;
+            document.getElementById('m1-rot').value = 0;
+            document.getElementById('m2-pos').value = 5;
+            document.getElementById('m2-rot').value = 0;
+
+            document.getElementById('m1-pos-val').innerText = "-5";
+            document.getElementById('m1-rot-val').innerText = "0°";
+            document.getElementById('m2-pos-val').innerText = "5";
+            document.getElementById('m2-rot-val').innerText = "0°";
+
+            update();
+        };
+
+        window.flipPoles = () => {
+            state.m1.angle = (state.m1.angle + 180) % 360;
+            state.m2.angle = (state.m2.angle + 180) % 360;
+
+            document.getElementById('m1-rot').value = state.m1.angle;
+            document.getElementById('m2-rot').value = state.m2.angle;
+            document.getElementById('m1-rot-val').innerText = state.m1.angle + "°";
+            document.getElementById('m2-rot-val').innerText = state.m2.angle + "°";
+
+            update();
+        };
+
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+    </script>
+</body>
+
+</html>
