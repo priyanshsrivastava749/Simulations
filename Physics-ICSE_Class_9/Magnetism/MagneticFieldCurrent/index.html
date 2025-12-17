@@ -32,6 +32,7 @@
             backdrop-filter: blur(12px);
             width: 300px;
             box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+            z-index: 10;
         }
 
         h2 {
@@ -50,6 +51,7 @@
         label {
             display: flex;
             justify-content: space-between;
+            align-items: center;
             margin-bottom: 10px;
             color: #cbd5e1;
             font-size: 0.95rem;
@@ -92,6 +94,7 @@
             padding: 12px;
             border-radius: 8px;
             border: 1px solid rgba(255, 255, 255, 0.05);
+            margin-bottom: 10px;
         }
 
         .toggle-switch {
@@ -151,6 +154,26 @@
             border-radius: 0 4px 4px 0;
         }
 
+        .btn {
+            width: 100%;
+            padding: 10px;
+            background: #334155;
+            color: white;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 500;
+            transition: all 0.2s;
+        }
+
+        .btn:hover {
+            background: #475569;
+        }
+
+        .btn:active {
+            transform: translateY(1px);
+        }
+
         .back-btn {
             position: absolute;
             top: 20px;
@@ -165,11 +188,55 @@
             font-weight: 500;
             transition: all 0.2s;
             backdrop-filter: blur(5px);
+            z-index: 10;
         }
 
         .back-btn:hover {
             background: #6366f1;
             transform: translateY(-1px);
+        }
+
+        /* Overlay for Circuit Diagram */
+        #diagram-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.85);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 100;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.3s;
+        }
+
+        #diagram-overlay.visible {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        .diagram-content {
+            background: white;
+            padding: 2rem;
+            border-radius: 12px;
+            max-width: 90%;
+            max-height: 90%;
+            overflow: auto;
+            position: relative;
+        }
+
+        .close-diagram {
+            position: absolute;
+            top: 10px;
+            right: 15px;
+            background: none;
+            border: none;
+            font-size: 24px;
+            cursor: pointer;
+            color: #333;
         }
     </style>
 </head>
@@ -196,9 +263,78 @@
             <input type="range" id="current-slider" min="0" max="5" step="0.1" value="0">
         </div>
 
+        <div class="control-group">
+            <div class="switch-wrapper" style="background: transparent; border: none; padding: 0;">
+                <label style="margin: 0; width: 100%; cursor: pointer;">
+                    <span>Show Field Lines</span>
+                    <label class="toggle-switch" style="transform: scale(0.8);">
+                        <input type="checkbox" id="field-toggle">
+                        <span class="slider"></span>
+                    </label>
+                </label>
+            </div>
+        </div>
+
+        <button class="btn" id="diagram-btn">View Circuit Diagram</button>
+
         <div class="instruction">
-            <strong>Tip:</strong> Drag the compass to explore the magnetic field. Notice how the needle aligns with the
-            field lines created by the solenoid.
+            <strong>Tip:</strong> Drag the compass to discover field direction. Toggle Field Lines to see the magnetic
+            loops.
+        </div>
+    </div>
+
+    <!-- Circuit Diagram Overlay -->
+    <div id="diagram-overlay">
+        <div class="diagram-content">
+            <button class="close-diagram" id="close-diagram">&times;</button>
+            <h3 style="color: #333; margin-top: 0;">Circuit Diagram</h3>
+            <!-- SVG Circuit Diagram -->
+            <svg width="400" height="300" viewBox="0 0 400 300" xmlns="http://www.w3.org/2000/svg">
+                <style>
+                    .circuit-line {
+                        stroke: #000;
+                        stroke-width: 2;
+                        fill: none;
+                    }
+
+                    .component-label {
+                        font-family: sans-serif;
+                        font-size: 14px;
+                        fill: #333;
+                    }
+                </style>
+                <!-- Battery -->
+                <line x1="50" y1="150" x2="150" y2="150" class="circuit-line" />
+                <line x1="90" y1="135" x2="90" y2="165" class="circuit-line" stroke-width="4" /> <!-- Long bar -->
+                <line x1="100" y1="142" x2="100" y2="158" class="circuit-line" stroke-width="4" /> <!-- Short bar -->
+                <text x="85" y="125" class="component-label">+</text>
+
+                <!-- Switch -->
+                <line x1="150" y1="150" x2="180" y2="150" class="circuit-line" />
+                <line x1="180" y1="150" x2="210" y2="140" class="circuit-line" id="svg-switch-arm" />
+                <!-- Open switch -->
+                <line x1="210" y1="150" x2="250" y2="150" class="circuit-line" />
+                <circle cx="180" cy="150" r="3" fill="#000" />
+                <circle cx="210" cy="150" r="3" fill="#000" />
+                <text x="185" y="180" class="component-label">Switch (K)</text>
+
+                <!-- Solenoid (Inductor symbol) -->
+                <path d="M 250 150 Q 260 120 270 150 T 290 150 T 310 150 T 330 150" class="circuit-line" />
+                <rect x="255" y="145" width="70" height="10" fill="none" stroke="none" /> <!-- invisible box -->
+                <text x="270" y="120" class="component-label">Solenoid</text>
+
+                <!-- Soft Iron Core Indication -->
+                <line x1="255" y1="155" x2="325" y2="155" class="circuit-line" style="stroke-dasharray: 4,2;" />
+                <text x="270" y="180" class="component-label">Iron Core</text>
+
+                <!-- Rheostat -->
+                <line x1="330" y1="150" x2="330" y2="250" class="circuit-line" />
+                <line x1="330" y1="250" x2="50" y2="250" class="circuit-line" />
+                <line x1="50" y1="250" x2="50" y2="150" class="circuit-line" />
+
+                <!-- Arrow for Variable R (Rheostat logic abstract) -->
+                <text x="180" y="270" class="component-label">Connecting Wires</text>
+            </svg>
         </div>
     </div>
 
@@ -225,7 +361,7 @@
         scene.fog = new THREE.Fog(0x0f172a, 20, 60);
 
         const camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 1000);
-        camera.position.set(10, 15, 10);
+        camera.position.set(10, 15, 12);
         camera.lookAt(0, 0, 0);
 
         const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
@@ -238,7 +374,7 @@
         const controls = new OrbitControls(camera, renderer.domElement);
         controls.enableDamping = true;
         controls.dampingFactor = 0.05;
-        controls.maxPolarAngle = Math.PI / 2 - 0.1; // Don't go below ground
+        controls.maxPolarAngle = Math.PI / 2 - 0.1;
         controls.minDistance = 5;
         controls.maxDistance = 40;
 
@@ -249,361 +385,378 @@
         const dirLight = new THREE.DirectionalLight(0xffffff, 1);
         dirLight.position.set(5, 12, 8);
         dirLight.castShadow = true;
-        dirLight.shadow.mapSize.width = 2048;
-        dirLight.shadow.mapSize.height = 2048;
         dirLight.shadow.bias = -0.0001;
         scene.add(dirLight);
 
-        const glowLight = new THREE.PointLight(0x818cf8, 0, 10); // Solenoid glow
+        const glowLight = new THREE.PointLight(0x818cf8, 0, 15); // Extended range
         glowLight.position.set(0, 2, 0);
         scene.add(glowLight);
 
-        // --- Laboratory Desk ---
-        const planeGeometry = new THREE.PlaneGeometry(100, 100);
-        const planeMaterial = new THREE.MeshStandardMaterial({
-            color: 0x1e293b,
-            roughness: 0.6,
-            metalness: 0.2
-        });
-        const plane = new THREE.Mesh(planeGeometry, planeMaterial);
-        plane.rotation.x = -Math.PI / 2;
-        plane.receiveShadow = true;
-        plane.name = "TableSurface"; // For raycasting
-        scene.add(plane);
-
-        const grid = new THREE.GridHelper(50, 50, 0x334155, 0x1e293b);
-        grid.position.y = 0.01;
-        scene.add(grid);
-
-        // --- Objects Container ---
+        // --- Objects ---
         const apparatusGroup = new THREE.Group();
-        apparatusGroup.position.y = 2; // Lift off table
+        apparatusGroup.position.y = 2;
         scene.add(apparatusGroup);
 
-        // 1. Soft Iron Core
-        const coreGeo = new THREE.CylinderGeometry(CONFIG.coreRadius, CONFIG.coreRadius, CONFIG.coreLength, 32);
-        coreGeo.rotateZ(Math.PI / 2);
-        const coreMat = new THREE.MeshStandardMaterial({
-            color: 0xa1a1aa, // Zinc/Iron-ish
-            roughness: 0.3,
-            metalness: 0.8
-        });
-        const core = new THREE.Mesh(coreGeo, coreMat);
+        // Table
+        const plane = new THREE.Mesh(
+            new THREE.PlaneGeometry(100, 100),
+            new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.6, metalness: 0.2 })
+        );
+        plane.rotation.x = -Math.PI / 2;
+        plane.receiveShadow = true;
+        scene.add(plane);
+
+        scene.add(new THREE.GridHelper(50, 50, 0x334155, 0x1e293b));
+
+        // Core
+        const core = new THREE.Mesh(
+            new THREE.CylinderGeometry(CONFIG.coreRadius, CONFIG.coreRadius, CONFIG.coreLength, 32).rotateZ(Math.PI / 2),
+            new THREE.MeshStandardMaterial({ color: 0xa1a1aa, roughness: 0.3, metalness: 0.8 })
+        );
         core.castShadow = true;
-        core.receiveShadow = true;
         apparatusGroup.add(core);
 
-        // 2. Solenoid Coil
+        // Solenoid
         const coilPoints = [];
+        const startX = -CONFIG.solenoidLength / 2;
+        const endX = CONFIG.solenoidLength / 2;
         for (let i = 0; i <= CONFIG.turns * 10; i++) {
             const angle = (i / 10) * Math.PI * 2;
-            const x = (i / (CONFIG.turns * 10)) * CONFIG.solenoidLength - CONFIG.solenoidLength / 2;
+            const x = (i / (CONFIG.turns * 10)) * CONFIG.solenoidLength + startX;
             const y = Math.cos(angle) * CONFIG.solenoidRadius;
             const z = Math.sin(angle) * CONFIG.solenoidRadius;
             coilPoints.push(new THREE.Vector3(x, y, z));
         }
         const coilCurve = new THREE.CatmullRomCurve3(coilPoints);
-        const coilGeo = new THREE.TubeGeometry(coilCurve, 200, CONFIG.wireThickness, 8, false);
-        const coilMat = new THREE.MeshStandardMaterial({
-            color: 0xb87333, // Copper
-            roughness: 0.3,
-            metalness: 0.6
-        });
-        const solenoid = new THREE.Mesh(coilGeo, coilMat);
+        const solenoid = new THREE.Mesh(
+            new THREE.TubeGeometry(coilCurve, 200, CONFIG.wireThickness, 8, false),
+            new THREE.MeshStandardMaterial({ color: 0xb87333, roughness: 0.3 })
+        );
         solenoid.castShadow = true;
         apparatusGroup.add(solenoid);
 
-        // 3. Mounts/Stand
-        function createStand(x) {
-            const standGeo = new THREE.BoxGeometry(0.5, 2.5, 4);
-            const standMat = new THREE.MeshStandardMaterial({ color: 0x333333 });
-            const stand = new THREE.Mesh(standGeo, standMat);
-            stand.position.set(x, -1.5, 0); // Position relative to core center (y=2 world -> y=0 local)
-            stand.castShadow = true;
-            return stand;
+        // Connecting Wires (Visual fake)
+        function createWire(p1, p2) {
+            const lineCurve = new THREE.LineCurve3(p1, p2);
+            return new THREE.Mesh(
+                new THREE.TubeGeometry(lineCurve, 4, 0.08, 8, false),
+                new THREE.MeshStandardMaterial({ color: 0x333333 })
+            );
         }
-        apparatusGroup.add(createStand(-2.5));
-        apparatusGroup.add(createStand(2.5));
+        // Wire from Left End to "Battery" area under table or side
+        const leftEnd = new THREE.Vector3(startX, -CONFIG.solenoidRadius, 0);
+        const rightEnd = new THREE.Vector3(endX, -CONFIG.solenoidRadius, 0);
 
-        // --- Compass (Ultra Realistic) ---
+        // Just drop them down to the "stands"
+        const wireL = createWire(leftEnd, new THREE.Vector3(startX, -1.5, 0));
+        const wireR = createWire(rightEnd, new THREE.Vector3(endX, -1.5, 0));
+        apparatusGroup.add(wireL);
+        apparatusGroup.add(wireR);
+
+
+        // Stands
+        const standMat = new THREE.MeshStandardMaterial({ color: 0x1f2937 });
+        const s1 = new THREE.Mesh(new THREE.BoxGeometry(0.5, 2.5, 4), standMat);
+        s1.position.set(-2.5, -1.5, 0);
+        s1.castShadow = true;
+        apparatusGroup.add(s1);
+
+        const s2 = new THREE.Mesh(new THREE.BoxGeometry(0.5, 2.5, 4), standMat);
+        s2.position.set(2.5, -1.5, 0);
+        s2.castShadow = true;
+        apparatusGroup.add(s2);
+
+        // --- Compass ---
         const compassGroup = new THREE.Group();
-        // Start position
         compassGroup.position.set(0, 0.2, 5);
         scene.add(compassGroup);
 
-        // Compass Case
-        const caseGeo = new THREE.CylinderGeometry(CONFIG.compassRadius, CONFIG.compassRadius, 0.4, 32);
-        const caseMat = new THREE.MeshStandardMaterial({ color: 0xdddddd, metalness: 0.5, roughness: 0.2 });
-        const compassCase = new THREE.Mesh(caseGeo, caseMat);
-        compassCase.receiveShadow = true;
+        const compassCase = new THREE.Mesh(
+            new THREE.CylinderGeometry(CONFIG.compassRadius, CONFIG.compassRadius, 0.4, 32),
+            new THREE.MeshStandardMaterial({ color: 0xdddddd, metalness: 0.5, roughness: 0.2 })
+        );
         compassCase.castShadow = true;
         compassGroup.add(compassCase);
 
-        const glassGeo = new THREE.CylinderGeometry(CONFIG.compassRadius * 0.9, CONFIG.compassRadius * 0.9, 0.05, 32);
-        const glassMat = new THREE.MeshPhysicalMaterial({
-            color: 0xffffff, transmission: 0.9, opacity: 1, transparent: true, roughness: 0, metalness: 0, clearcoat: 1
-        });
-        const glass = new THREE.Mesh(glassGeo, glassMat);
-        glass.position.y = 0.22;
-        compassGroup.add(glass);
+        // Glass
+        compassGroup.add(new THREE.Mesh(
+            new THREE.CylinderGeometry(CONFIG.compassRadius * 0.9, CONFIG.compassRadius * 0.9, 0.05, 32),
+            new THREE.MeshPhysicalMaterial({ color: 0xffffff, transmission: 0.9, opacity: 1, transparent: true, roughness: 0 })
+        ).translateY(0.22));
 
-        // Compass Dial (White face)
-        const dialGeo = new THREE.CircleGeometry(CONFIG.compassRadius * 0.85, 32);
-        const dialMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
-        const dial = new THREE.Mesh(dialGeo, dialMat);
+        // Dial
+        const dial = new THREE.Mesh(
+            new THREE.CircleGeometry(CONFIG.compassRadius * 0.85, 32),
+            new THREE.MeshBasicMaterial({ color: 0xffffff })
+        );
         dial.rotation.x = -Math.PI / 2;
         dial.position.y = 0.205;
         compassGroup.add(dial);
 
-        // N/S/E/W Markings
-        const fontLoader = new THREE.TextureLoader(); // Mocking text with simple canvas shapes for now or primitives
-        // Let's use simple primitives for N, S, E, W
-        function createMark(text, angle, color) {
-            // Placeholder: Just small boxes
-            const mark = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.01, 0.3), new THREE.MeshBasicMaterial({ color: color }));
-            mark.position.y = 0.21;
-            mark.position.x = Math.sin(angle) * (CONFIG.compassRadius * 0.65);
-            mark.position.z = Math.cos(angle) * (CONFIG.compassRadius * 0.65);
+        // Markings
+        const markings = new THREE.Group();
+        ['N', 'E', 'S', 'W'].forEach((dir, i) => {
+            const angle = i * Math.PI / 2 + Math.PI; // Correct alignment
+            const mark = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.01, 0.4), new THREE.MeshBasicMaterial({ color: i % 2 === 0 ? 0xef4444 : 0x000000 }));
+            mark.position.set(Math.sin(angle) * 0.8, 0.21, Math.cos(angle) * 0.8);
             mark.rotation.y = angle;
-            compassGroup.add(mark);
-        }
-        createMark("N", Math.PI, 0xff0000); // Back Z is North usually in maps, but simulated physics... let's say Z- is North
-        createMark("S", 0, 0x000000);
-        createMark("E", -Math.PI / 2, 0x000000);
-        createMark("W", Math.PI / 2, 0x000000);
+            markings.add(mark);
+        });
+        compassGroup.add(markings);
 
-        // Compass Center Pin
-        const pinGeo = new THREE.CylinderGeometry(0.05, 0.05, 0.3, 16);
-        const pinMat = new THREE.MeshStandardMaterial({ color: 0xb87333 }); // Gold/Brass
-        const pin = new THREE.Mesh(pinGeo, pinMat);
-        pin.position.y = 0.2;
-        compassGroup.add(pin);
-
-        // The Needle (The "Sexy" part)
+        // Needle
         const needleGroup = new THREE.Group();
         needleGroup.position.y = 0.35;
         compassGroup.add(needleGroup);
 
-        // North Tip (Red magnitude)
-        const tipGeo = new THREE.ConeGeometry(0.15, 0.9, 4);
-        // rotate cone to point along Z
-        tipGeo.rotateX(Math.PI / 2);
-        const northMat = new THREE.MeshStandardMaterial({ color: 0xe11d48, metalness: 0.3, roughness: 0.2 });
-        const northTip = new THREE.Mesh(tipGeo, northMat);
-        northTip.position.z = -0.45; // Pointing to -Z
-        northTip.rotation.y = Math.PI; // Flip to point z-
-        // Actually cone points up Y. rotateX(90) -> points Z. 
-        // We want the point at -Z?
-        // Let's reset geometry rotation
-        const nGeo = new THREE.ConeGeometry(0.15, 0.9, 4);
-        nGeo.rotateX(-Math.PI / 2); // Points along -Z
-        const nTip = new THREE.Mesh(nGeo, northMat);
+        const nTip = new THREE.Mesh(
+            new THREE.ConeGeometry(0.15, 0.9, 4).rotateX(-Math.PI / 2),
+            new THREE.MeshStandardMaterial({ color: 0xe11d48 })
+        );
         nTip.position.z = -0.45;
         needleGroup.add(nTip);
 
-        // South Tip (Silver/White)
-        const sGeo = new THREE.ConeGeometry(0.15, 0.9, 4);
-        sGeo.rotateX(Math.PI / 2); // Points along +Z
-        const sMat = new THREE.MeshStandardMaterial({ color: 0xe2e8f0, metalness: 0.3, roughness: 0.2 });
-        const sTip = new THREE.Mesh(sGeo, sMat);
+        const sTip = new THREE.Mesh(
+            new THREE.ConeGeometry(0.15, 0.9, 4).rotateX(Math.PI / 2),
+            new THREE.MeshStandardMaterial({ color: 0xe2e8f0 })
+        );
         sTip.position.z = 0.45;
         needleGroup.add(sTip);
 
 
-        // --- Interaction Logic (Drag Compass) ---
-        const raycaster = new THREE.Raycaster();
-        const mouse = new THREE.Vector2();
-        let isDragging = false;
-        const dragPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), -0.2); // Plane at y=0.2
+        // --- Field Lines Visualization ---
+        const fieldLinesGroup = new THREE.Group();
+        fieldLinesGroup.visible = false; // Hidden by default
+        scene.add(fieldLinesGroup);
 
-        window.addEventListener('mousedown', (event) => {
-            mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
-            mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
-            raycaster.setFromCamera(mouse, camera);
+        // Precompute lines? Or dynamic?
+        // Dynamic allows seeing them fade. But computationally expensive to stream.
+        // Let's generate static geometry shapes that we just scale/fade.
 
-            const intersects = raycaster.intersectObject(compassCase);
-            if (intersects.length > 0) {
-                isDragging = true;
-                controls.enabled = false;
-                document.body.style.cursor = 'grabbing';
+        function generateStreamlines() {
+            const count = 30; // Number of lines
+            const steps = 100;
+            const mat = new THREE.LineBasicMaterial({ color: 0x10b981, transparent: true, opacity: 0.6 });
+
+            // Seed points within the coil cross section distributed around
+            // Or better: seed points on a circle at the center of the coil and trace out?
+            // Actually, seed points on the face of the core (x = -3).
+
+            for (let i = 0; i < count; i++) {
+                const angle = (i / count) * Math.PI * 2;
+                // Distribute radius: some close, some far
+                const r = 0.5 + Math.random() * 2.0;
+                const start = new THREE.Vector3(-0.1, Math.cos(angle) * r + 2, Math.sin(angle) * r);
+
+                // Trace field
+                // BUT: We need a field function that works for tracing. 
+                // The dipole approximation I used for compass is too simple for drawing meaningful loops near the coil.
+                // Reverting to a simple Dipole vector field for visual lines might look okay from distance.
+
+                const points = [];
+                let curr = start.clone();
+                // We'll trace both forward and backward from center
+                // Actually let's trace from x=-5 to 5
+
+                // Better approach for visuals: Ellipses that look like field lines.
+                // Much cheaper and "cleaner" looking than integrating a noisy field.
+
+                // Real field lines of a solenoid are loops.
+                // Let's make distorted ellipses.
+                const path = new THREE.Path();
+                const ellipseCurve = new THREE.EllipseCurve(
+                    0, 2, // ax, ay (Center X, Center Y -- relative to group rotation)
+                    // Wait, we need 3D loops.
+                    // Lets just use Torus knots or multiple EllipseCurves rotated.
+                );
             }
-        });
 
-        window.addEventListener('mousemove', (event) => {
-            mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
-            mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+            // Re-implementing simplified "Field Loops" using Tubing/Lines
+            // Loops passing through the coil.
+            for (let i = 0; i < 24; i++) {
+                const angle = (i / 24) * Math.PI * 2;
+                // Each line is a loop in a plane rotated by 'angle' around X axis (solenoid axis).
+                // Wait, solenoid axis is X. Center at (0,2,0).
+                // So planes pass through the X axis.
 
-            if (isDragging) {
-                raycaster.setFromCamera(mouse, camera);
-                const point = new THREE.Vector3();
-                raycaster.ray.intersectPlane(dragPlane, point);
-                if (point) {
-                    compassGroup.position.set(point.x, 0.2, point.z);
+                const loopPoints = [];
+                // Create a squashed circle/ellipse
+                const a = 8; // Length along X
+                const b = 2 + (i % 3); // Height away from axis
+
+                for (let t = 0; t <= 64; t++) {
+                    const theta = (t / 64) * Math.PI * 2;
+                    const lx = Math.cos(theta) * a;
+                    const ly = Math.sin(theta) * b;
+
+                    // This is in 2D. Now map to 3D.
+                    // X coordinate is lx.
+                    // Radial coordinate is ly.
+                    // Angle around X axis is 'angle'.
+
+                    const x = lx;
+                    // Start from center (0, 2, 0).
+                    const radius = Math.abs(ly); // distance from wire axis
+                    // Need to offset so it doesn't cross exactly center?
+                    // Actually solenoid field goes THROUGH center.
+
+                    // Let's use standard parametric for Ellipsoid-ish
+                    // X = a cos(t)
+                    // Y = b sin(t) * cos(angle)
+                    // Z = b sin(t) * sin(angle)
+
+                    // Offset Y by 2.
+                    loopPoints.push(new THREE.Vector3(x, 2 + Math.cos(angle) * Math.sin(theta) * b, Math.sin(angle) * Math.sin(theta) * b));
                 }
-            } else {
-                // Hover effect check
-                raycaster.setFromCamera(mouse, camera);
-                const intersects = raycaster.intersectObject(compassCase);
-                document.body.style.cursor = intersects.length > 0 ? 'grab' : 'auto';
+
+                const geometry = new THREE.BufferGeometry().setFromPoints(loopPoints);
+                const line = new THREE.Line(geometry, mat);
+                fieldLinesGroup.add(line);
             }
-        });
-
-        window.addEventListener('mouseup', () => {
-            isDragging = false;
-            controls.enabled = true;
-            document.body.style.cursor = 'auto';
-        });
+        }
+        generateStreamlines();
 
 
-        // --- Physics & Simulation State ---
-        const state = {
-            current: 0,
-            targetCurrent: 0,
-            switchOn: false
-        };
-
+        // --- Interaction ---
         const ui = {
             switch: document.getElementById('switch-toggle'),
             slider: document.getElementById('current-slider'),
-            currentDisplay: document.getElementById('current-val')
+            currVal: document.getElementById('current-val'),
+            field: document.getElementById('field-toggle'),
+            diagBtn: document.getElementById('diagram-btn'),
+            diagOverlay: document.getElementById('diagram-overlay'),
+            diagClose: document.getElementById('close-diagram')
         };
 
-        // UI Event Listeners
+        const state = { current: 0, target: 0, on: false };
+
         ui.switch.addEventListener('change', (e) => {
-            state.switchOn = e.target.checked;
+            state.on = e.target.checked;
             updateUI();
+            // Animate SVG diagram switch?
+            const arm = document.getElementById('svg-switch-arm');
+            if (state.on) {
+                arm.setAttribute('y2', '150'); // Closed
+            } else {
+                arm.setAttribute('y2', '140'); // Open
+            }
         });
 
-        ui.slider.addEventListener('input', (e) => {
-            updateUI();
+        ui.slider.addEventListener('input', updateUI);
+
+        ui.field.addEventListener('change', (e) => {
+            fieldLinesGroup.visible = e.target.checked;
         });
+
+        ui.diagBtn.addEventListener('click', () => ui.diagOverlay.classList.add('visible'));
+        ui.diagClose.addEventListener('click', () => ui.diagOverlay.classList.remove('visible'));
 
         function updateUI() {
-            const sliderVal = parseFloat(ui.slider.value);
-
-            if (state.switchOn) {
-                state.targetCurrent = sliderVal;
-            } else {
-                state.targetCurrent = 0;
-            }
-
-            ui.currentDisplay.innerText = state.switchOn
-                ? `${state.targetCurrent.toFixed(1)} A`
-                : "0.0 A (Off)";
+            const val = parseFloat(ui.slider.value);
+            state.target = state.on ? val : 0;
+            ui.currVal.innerText = state.on ? val.toFixed(1) + " A" : "0.0 A (Off)";
         }
 
-        function calculateMagneticField(position) {
-            // Earth's Field (Weak, pointing North -> -Z)
-            const B_earth = new THREE.Vector3(0, 0, -1).normalize().multiplyScalar(0.5);
+        // Draggable Compass
+        const raycaster = new THREE.Raycaster();
+        const mouse = new THREE.Vector2();
+        let isDragging = false;
+        const dragPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), -0.2);
 
-            // Solenoid Field (Dipole Approximation)
-            // Center of solenoid is (0, 2, 0)
+        window.addEventListener('mousedown', onMouseDown);
+        window.addEventListener('mousemove', onMouseMove);
+        window.addEventListener('mouseup', () => { isDragging = false; controls.enabled = true; });
+
+        function onMouseDown(e) {
+            updateMouse(e);
+            raycaster.setFromCamera(mouse, camera);
+            if (raycaster.intersectObject(compassCase).length > 0) {
+                isDragging = true;
+                controls.enabled = false;
+            }
+        }
+
+        function onMouseMove(e) {
+            updateMouse(e);
+            if (isDragging) {
+                raycaster.setFromCamera(mouse, camera);
+                const p = new THREE.Vector3();
+                raycaster.ray.intersectPlane(dragPlane, p);
+                if (p) compassGroup.position.set(p.x, 0.2, p.z);
+            }
+        }
+
+        function updateMouse(e) {
+            mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
+            mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+        }
+
+        // --- Physics Implementation ---
+        function calculateField(pos) {
+            const B_earth = new THREE.Vector3(0, 0, -1).multiplyScalar(0.5);
+
+            // Dipole Model
             const center = new THREE.Vector3(0, 2, 0);
-            const rVec = new THREE.Vector3().subVectors(position, center);
+            const rVec = new THREE.Vector3().subVectors(pos, center);
             const r = rVec.length();
 
-            // Magnetic Moment M = N * I * A * vector
-            // N = 20, I = state.current, A = PI * r^2
-            // Direction: X axis (Solenoid lies along X axis)
-            // Wait, geometry: Cylinder rotateZ(90) -> Lies on X axis. Correct.
-            // So dipole moment is along X.
-            // Right hand rule: 
-            // If current flows one way, it points +X or -X. Let's say +X.
+            // Avoid singularity inside
+            if (r < 1.0) return new THREE.Vector3(1, 0, 0).multiplyScalar(state.current * 2);
 
-            const area = Math.PI * CONFIG.solenoidRadius * CONFIG.solenoidRadius;
-            const momentMag = CONFIG.turns * state.current * area * 0.5; // Scaling factor for comfortable visual effect
+            const momentMag = 200 * state.current; // Tuned for effect
             const moment = new THREE.Vector3(1, 0, 0).multiplyScalar(momentMag);
-
-            // Dipole formula: B = (mu0/4pi) * (3(m.r)r - m*r^2) / r^5 
-            // Simplified: B ~ (3(m.rHat)rHat - m) / r^3
-
-            if (r < 0.1) return B_earth; // Avoid singularity
 
             const rHat = rVec.clone().normalize();
             const dot = moment.dot(rHat);
 
-            const B_solenoid = new THREE.Vector3()
+            const B_dip = new THREE.Vector3()
                 .copy(rHat).multiplyScalar(3 * dot)
                 .sub(moment)
                 .divideScalar(Math.pow(r, 3));
 
-            // Inside the core, field is uniform? The dipole approx is bad inside.
-            // But compass is outside.
-            // If compass is exactly inside (passed through geometry), it might go crazy.
-            // Let's clamp distance to surface of solenoid roughly
-            if (r < CONFIG.solenoidRadius) {
-                // Hack: Inside field points along axis (+X)
-                B_solenoid.set(1, 0, 0).multiplyScalar(momentMag * 0.2);
-            }
-
-            return new THREE.Vector3().addVectors(B_earth, B_solenoid);
+            return B_earth.add(B_dip);
         }
 
-        // Animation Loop
+        // --- Animate ---
         function animate() {
             requestAnimationFrame(animate);
 
-            // Ramp current for smooth effect
-            state.current += (state.targetCurrent - state.current) * 0.1;
+            // Smooth current
+            state.current += (state.target - state.current) * 0.1;
 
-            // 1. Update Core visuals (heat/glow? No, just solenoid color potentially)
-            // Solenoid glow intensity
+            // Glow effect
             if (state.current > 0.1) {
-                glowLight.intensity = state.current * 0.5;
+                glowLight.intensity = state.current * 0.8;
                 solenoid.material.emissive.setHex(0xff4400);
-                solenoid.material.emissiveIntensity = state.current * 0.2;
+                solenoid.material.emissiveIntensity = state.current * 0.1;
             } else {
                 glowLight.intensity = 0;
                 solenoid.material.emissive.setHex(0x000000);
             }
 
-            // 2. Compass Physics
-            // Compass position in world
-            const compassPos = compassGroup.position.clone();
-            compassPos.y += 0.35; // Height of needle
+            // Compass Physics
+            const needleWorldPos = new THREE.Vector3().setFromMatrixPosition(needleGroup.matrixWorld);
+            const B = calculateField(needleWorldPos);
 
-            const B = calculateMagneticField(compassPos);
+            // Angle in XZ plane
+            let targetAng = Math.atan2(B.x, B.z) - Math.PI;
+            let currAng = needleGroup.rotation.y;
 
-            // Calculate target angle
-            // Needle rotates in X-Z plane (y-axis is pivot)
-            // We need the angle of B vector projected on XZ plane
-            const angle = Math.atan2(B.x, B.z);
-            // atan2(x, z) gives angle from Z axis? 
-            // If B is (0,0,-1) [North], atan2(0, -1) = PI.
-            // If B is (1,0,0) [East], atan2(1, 0) = PI/2.
+            // Standardize
+            while (targetAng - currAng > Math.PI) targetAng -= Math.PI * 2;
+            while (targetAng - currAng < -Math.PI) targetAng += Math.PI * 2;
 
-            // Needle points along -Z by default (North Tip).
-            // Visual rotation: default 0 means North Tip points -Z.
-            // So if field is North (-Z), rotation should be 0. (PI matches? let's check).
-            // If rotation.y = 0: N-Tip at -Z.
-            // If B is North (0,0,-1), we want N-Tip to point North.
-            // So rotation 0 is correct.
-            // atan2(0,-1) is PI. So rotation = angle - PI?
+            needleGroup.rotation.y += (targetAng - currAng) * 0.15;
 
-            let targetRotation = angle - Math.PI;
-
-            // Smooth rotation (sexy dampening)
-            // Handle shortest path for rotation (avoid 359 -> 1 flips)
-            let currentRotation = needleGroup.rotation.y;
-
-            // Normalize angles
-            while (targetRotation - currentRotation > Math.PI) targetRotation -= Math.PI * 2;
-            while (targetRotation - currentRotation < -Math.PI) targetRotation += Math.PI * 2;
-
-            const speed = 0.1 + (state.current * 0.02); // React faster with stronger field
-            needleGroup.rotation.y += (targetRotation - currentRotation) * speed;
-
-            // Needle Dip (optional realism: magnetic dip)
-            // If B has Y component, needle dips.
-            // const dipAngle = Math.atan2(B.y, Math.sqrt(B.x*B.x + B.z*B.z));
-            // needleGroup.rotation.x = -dipAngle * 0.5; // Limited dip
-
+            // Field Lines Opacity
+            fieldLinesGroup.children.forEach(line => {
+                line.material.opacity = (state.current / 5) * 0.6;
+            });
 
             controls.update();
             renderer.render(scene, camera);
         }
 
-        // Resize
         window.addEventListener('resize', () => {
             camera.aspect = window.innerWidth / window.innerHeight;
             camera.updateProjectionMatrix();
