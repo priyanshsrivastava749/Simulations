@@ -1,0 +1,458 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Magnetic Field due to Current</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://example.com/OrbitControls.js"></script> <!-- Placeholder, will use inline or CDN -->
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: #0f172a;
+            color: white;
+            font-family: 'Inter', sans-serif;
+        }
+
+        #canvas-container {
+            width: 100vw;
+            height: 100vh;
+        }
+
+        #ui-container {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: rgba(30, 41, 59, 0.9);
+            padding: 20px;
+            border-radius: 12px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            width: 280px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+        }
+
+        .control-group {
+            margin-bottom: 20px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 500;
+            color: #94a3b8;
+        }
+
+        input[type="range"] {
+            width: 100%;
+            height: 6px;
+            background: #475569;
+            border-radius: 3px;
+            outline: none;
+            -webkit-appearance: none;
+            appearance: none;
+        }
+
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 18px;
+            height: 18px;
+            background: #6366f1;
+            border-radius: 50%;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        input[type="range"]::-webkit-slider-thumb:hover {
+            background: #818cf8;
+        }
+
+        .switch-container {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .toggle-switch {
+            position: relative;
+            display: inline-block;
+            width: 50px;
+            height: 26px;
+        }
+
+        .toggle-switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #475569;
+            transition: .4s;
+            border-radius: 34px;
+        }
+
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 18px;
+            width: 18px;
+            left: 4px;
+            bottom: 4px;
+            background-color: white;
+            transition: .4s;
+            border-radius: 50%;
+        }
+
+        input:checked+.slider {
+            background-color: #10b981;
+        }
+
+        input:checked+.slider:before {
+            transform: translateX(24px);
+        }
+
+        .value-display {
+            float: right;
+            color: #f8fafc;
+            font-weight: bold;
+        }
+
+        h2 {
+            margin-top: 0;
+            color: #f8fafc;
+            font-size: 1.2rem;
+            border-bottom: 1px solid #334155;
+            padding-bottom: 10px;
+        }
+
+        .back-btn {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            padding: 10px 20px;
+            background: rgba(30, 41, 59, 0.8);
+            color: white;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 8px;
+            cursor: pointer;
+            text-decoration: none;
+            font-weight: 500;
+            transition: all 0.2s;
+        }
+
+        .back-btn:hover {
+            background: #6366f1;
+        }
+    </style>
+</head>
+
+<body>
+
+    <a href="../index.html" class="back-btn">← Back</a>
+
+    <div id="ui-container">
+        <h2>Controls</h2>
+        <div class="control-group">
+            <div class="switch-container">
+                <label>Circuit Switch</label>
+                <label class="toggle-switch">
+                    <input type="checkbox" id="switch-toggle">
+                    <span class="slider"></span>
+                </label>
+            </div>
+        </div>
+        <div class="control-group">
+            <label>Current (I) <span id="current-val" class="value-display">0 A</span></label>
+            <input type="range" id="current-slider" min="0" max="10" step="0.5" value="0">
+        </div>
+        <div style="font-size: 0.9rem; color: #94a3b8; line-height: 1.5;">
+            Toggle the switch to complete the circuit. Increase current to see magnetic field intensity.
+        </div>
+    </div>
+
+    <div id="canvas-container"></div>
+
+    <script type="module">
+        import * as THREE from 'https://cdn.skypack.dev/three@0.132.2';
+        import { OrbitControls } from 'https://cdn.skypack.dev/three@0.132.2/examples/jsm/controls/OrbitControls.js';
+
+        // Scene Setup
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x0f172a);
+        scene.fog = new THREE.FogExp2(0x0f172a, 0.02);
+
+        const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
+        camera.position.set(15, 15, 20);
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(window.devicePixelRatio);
+        renderer.shadowMap.enabled = true;
+        document.getElementById('canvas-container').appendChild(renderer.domElement);
+
+        const controls = new OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+        controls.dampingFactor = 0.05;
+
+        // Lights
+        const ambientLight = new THREE.AmbientLight(0x404040, 2);
+        scene.add(ambientLight);
+
+        const dirLight = new THREE.DirectionalLight(0xffffff, 1);
+        dirLight.position.set(10, 20, 10);
+        dirLight.castShadow = true;
+        scene.add(dirLight);
+
+        const pointLight = new THREE.PointLight(0x6366f1, 2, 50);
+        pointLight.position.set(0, 5, 0);
+        scene.add(pointLight);
+
+        // --- Circuit Components ---
+
+        // 1. Table/Ground
+        const gridHelper = new THREE.GridHelper(50, 50, 0x1e293b, 0x0f172a);
+        scene.add(gridHelper);
+
+        // 2. Wire Loop (Rectangular)
+        const wireGroup = new THREE.Group();
+        scene.add(wireGroup);
+
+        const wireMaterial = new THREE.MeshStandardMaterial({ color: 0xb87333, metalness: 0.8, roughness: 0.2 }); // Copper
+        const wireActiveMaterial = new THREE.MeshStandardMaterial({ color: 0xffaa00, emissive: 0xff4400, emissiveIntensity: 2 }); // Glowing hot when high current
+
+        function createWireSegment(p1, p2, radius = 0.15) {
+            const path = new THREE.LineCurve3(p1, p2);
+            const geometry = new THREE.TubeGeometry(path, 1, radius, 12, false);
+            const mesh = new THREE.Mesh(geometry, wireMaterial);
+            mesh.castShadow = true;
+            return mesh;
+        }
+
+        // Circuit Points
+        const p1 = new THREE.Vector3(-8, 2, 5);
+        const p2 = new THREE.Vector3(8, 2, 5);
+        const p3 = new THREE.Vector3(8, 2, -5);
+        const p4 = new THREE.Vector3(-8, 2, -5);
+
+        // Battery and Switch gap
+        const p1_gap_start = new THREE.Vector3(-2, 2, 5);
+        const p1_gap_end = new THREE.Vector3(2, 2, 5);
+
+        // Wires
+        const wires = [];
+        wires.push(createWireSegment(new THREE.Vector3(-8, 2, 5), new THREE.Vector3(-2, 2, 5))); // Left front
+        wires.push(createWireSegment(new THREE.Vector3(2, 2, 5), new THREE.Vector3(8, 2, 5))); // Right front
+        wires.push(createWireSegment(p2, p3)); // Right side
+        wires.push(createWireSegment(p3, p4)); // Back side
+        wires.push(createWireSegment(p4, p1)); // Left side
+
+        wires.forEach(w => wireGroup.add(w));
+
+        // 3. Battery (Source)
+        const batteryGroup = new THREE.Group();
+        batteryGroup.position.set(0, 2, 5);
+
+        // Battery Case
+        const batGeo = new THREE.CylinderGeometry(0.8, 0.8, 3, 32);
+        batGeo.rotateZ(Math.PI / 2);
+        const batMat = new THREE.MeshStandardMaterial({ color: 0x333333 });
+        const batteryMesh = new THREE.Mesh(batGeo, batMat);
+        batteryGroup.add(batteryMesh);
+
+        // Positive Terminal
+        const posGeo = new THREE.CylinderGeometry(0.3, 0.3, 0.5, 32);
+        posGeo.rotateZ(Math.PI / 2);
+        const posMat = new THREE.MeshStandardMaterial({ color: 0xef4444 });
+        const posMesh = new THREE.Mesh(posGeo, posMat);
+        posMesh.position.x = 1.6;
+        batteryGroup.add(posMesh);
+
+        // Negative Terminal
+        const negGeo = new THREE.CylinderGeometry(0.3, 0.3, 0.5, 32);
+        negGeo.rotateZ(Math.PI / 2);
+        const negMat = new THREE.MeshStandardMaterial({ color: 0x000000 });
+        const negMesh = new THREE.Mesh(negGeo, negMat);
+        negMesh.position.x = -1.6;
+        batteryGroup.add(negMesh);
+
+        scene.add(batteryGroup);
+
+        // 4. Switch
+        const switchGroup = new THREE.Group();
+        switchGroup.position.set(0, 2, -5);
+
+        const switchBaseGeo = new THREE.BoxGeometry(3, 0.2, 1.5);
+        const switchBaseMat = new THREE.MeshStandardMaterial({ color: 0x475569 });
+        const switchBase = new THREE.Mesh(switchBaseGeo, switchBaseMat);
+        switchGroup.add(switchBase);
+
+        // Lever
+        const leverGeo = new THREE.BoxGeometry(2.5, 0.1, 0.4);
+        const leverMat = new THREE.MeshStandardMaterial({ color: 0x94a3b8 });
+        const lever = new THREE.Mesh(leverGeo, leverMat);
+        lever.position.set(-1, 0.5, 0);
+        // Pivot point logic simulated by rotation
+
+        switchGroup.add(lever);
+        scene.add(switchGroup);
+
+        // --- Magnetic Field Visualization ---
+        // Concentric circles around the wire segments
+        const fieldLinesGroup = new THREE.Group();
+        scene.add(fieldLinesGroup);
+
+        function createFieldLineRing(radius, position, rotationAxis) {
+            const curve = new THREE.EllipseCurve(
+                0, 0,            // ax, aY
+                radius, radius,  // xRadius, yRadius
+                0, 2 * Math.PI,  // aStartAngle, aEndAngle
+                false,           // aClockwise
+                0                // aRotation
+            );
+            const points = curve.getPoints(50);
+            const geometry = new THREE.BufferGeometry().setFromPoints(points);
+            const material = new THREE.LineBasicMaterial({
+                color: 0x10b981,
+                transparent: true,
+                opacity: 0,
+                linewidth: 1 // Note: linewidth doesn't always work in WebGL
+            });
+            const ellipse = new THREE.Line(geometry, material);
+
+            // Align ring
+            if (rotationAxis === 'x') ellipse.rotation.y = Math.PI / 2;
+            if (rotationAxis === 'z') ellipse.rotation.x = Math.PI / 2;
+
+            ellipse.position.copy(position);
+            return ellipse;
+        }
+
+        // Generate rings along the wires
+        const segments = [
+            { start: p2, end: p3, axis: 'z', count: 10 }, // Right side
+            { start: p4, end: p1, axis: 'z', count: 10 }, // Left side
+            { start: p3, end: p4, axis: 'x', count: 20 }  // Back side
+        ];
+
+        const allRings = [];
+
+        segments.forEach(seg => {
+            const dir = new THREE.Vector3().subVectors(seg.end, seg.start);
+            const len = dir.length();
+
+            for (let i = 1; i < seg.count; i++) {
+                const t = i / seg.count;
+                const pos = new THREE.Vector3().lerpVectors(seg.start, seg.end, t);
+
+                // Multiple layers for "3D" feel
+                [1, 2, 3].forEach(r => {
+                    const ring = createFieldLineRing(r * 0.8, pos, seg.axis); // axis is perpendicular to wire? No, align plane.
+                    // If wire is along Z, ring should be in XY plane (rotate X 0, Y 0, Z 0? No). 
+                    // Ellipse is in XY.
+                    // If wire is along Z (Right side, p2->p3 is (8,2,5)->(8,2,-5) -> along Z). Result needs XY rings. ellipse is XY. Correct.
+
+                    // If wire is along X (Back side, p3->p4 is (8,2,-5)->(-8,2,-5) -> along X). Ring needs YZ plane. Rotate Y=90.
+                    if (seg.axis === 'x') ring.rotation.y = Math.PI / 2;
+
+                    // Wait, logic above in createFieldLineRing was simpler, let's stick to this loop's logic
+
+                    fieldLinesGroup.add(ring);
+                    allRings.push({ mesh: ring, baseRadius: r * 0.8 });
+                });
+            }
+        });
+
+        // Arrow Helpers for Field Direction (optional, maybe complicated to add everywhere)
+        // Let's stick to glowing rings for now as requested "sexy".
+
+        // --- State & Logic ---
+        const ui = {
+            switchOp: document.getElementById('switch-toggle'),
+            slider: document.getElementById('current-slider'),
+            currentVal: document.getElementById('current-val')
+        };
+
+        let isCircuitSubscribed = false; // Is switch ON?
+        let current = 0; // 0 to 10
+
+        function updateSimulation() {
+            const switchOn = ui.switchOp.checked;
+            const sliderVal = parseFloat(ui.slider.value);
+
+            if (switchOn && current < sliderVal) {
+                current += 0.5; // Ramp up
+            } else if (!switchOn && current > 0) {
+                current -= 0.5; // Ramp down
+            } else if (switchOn) {
+                current = sliderVal;
+            }
+
+            if (current < 0) current = 0;
+
+            // Update UI Text
+            ui.currentVal.innerText = ui.switchOp.checked ? `${sliderVal} A` : "0 A (Switch OFF)";
+            if (current > 0 && !ui.switchOp.checked) ui.currentVal.innerText = "Discharging...";
+
+            // Animate Switch
+            const targetRot = switchOn ? -Math.PI / 6 : 0;
+            lever.rotation.z += (targetRot - lever.rotation.z) * 0.1;
+            lever.position.y = switchOn ? 0.3 : 0.5; // simple interaction
+
+            // Animate Rings
+            const intensity = current / 10;
+
+            allRings.forEach(item => {
+                const { mesh, baseRadius } = item;
+
+                // Pulse effect
+                const scale = 1 + Math.sin(Date.now() * 0.005 + baseRadius) * 0.05;
+                mesh.scale.set(scale, scale, scale);
+
+                // Opacity based on current
+                mesh.material.opacity = intensity * (1 - (baseRadius / 4)); // Fade out larger rings
+                if (mesh.material.opacity < 0) mesh.material.opacity = 0;
+
+                // Color shift based on intensity
+                const hue = 0.45 - (intensity * 0.1); // Green to Teal
+                mesh.material.color.setHSL(hue, 1, 0.5);
+            });
+
+            // Wire Glow
+            if (current > 8) {
+                // wires.forEach(w => w.material = wireActiveMaterial);
+            } else {
+                // wires.forEach(w => w.material = wireMaterial);
+            }
+
+        }
+
+        // Animation Loop
+        function animate() {
+            requestAnimationFrame(animate);
+            updateSimulation();
+            controls.update();
+            renderer.render(scene, camera);
+        }
+
+        // Resize Handler
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        animate();
+
+    </script>
+</body>
+
+</html>
