@@ -1,0 +1,636 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>⚛️</text></svg>">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SONAR & Echolocation Simulation</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            margin: 0;
+            background-color: #0f172a;
+            font-family: 'Segoe UI', sans-serif;
+        }
+
+        canvas {
+            display: block;
+        }
+
+        /* Custom range slider styling */
+        input[type=range] {
+            -webkit-appearance: none;
+            width: 100%;
+            background: transparent;
+        }
+
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            height: 20px;
+            width: 20px;
+            border-radius: 50%;
+            margin-top: -8px;
+            cursor: pointer;
+            box-shadow: 0 0 5px rgba(0, 0, 0, 0.3);
+        }
+
+        input[type=range]::-webkit-slider-runnable-track {
+            width: 100%;
+            height: 4px;
+            border-radius: 2px;
+        }
+
+        /* Specific slider colors */
+        .sonar-slider::-webkit-slider-thumb {
+            background: #facc15;
+        }
+
+        .sonar-slider::-webkit-slider-runnable-track {
+            background: #334155;
+        }
+
+        .bat-slider::-webkit-slider-thumb {
+            background: #a855f7;
+        }
+
+        .bat-slider::-webkit-slider-runnable-track {
+            background: #334155;
+        }
+    </style>
+</head>
+
+<body class="text-slate-200 h-screen flex flex-col overflow-hidden">
+
+    <!-- Header / Navigation -->
+    <header class="bg-slate-800 border-b border-slate-700 p-3 z-20 shadow-md">
+        <div class="max-w-4xl mx-auto flex flex-col sm:flex-row justify-between items-center gap-3 sm:gap-0">
+            <div>
+                <h1 class="text-lg font-bold text-sky-400 leading-tight">SONAR & Echolocation</h1>
+                <p class="text-[10px] text-slate-400">Sound Navigation and Ranging</p>
+            </div>
+
+            <div class="flex bg-slate-900 rounded-lg p-1 border border-slate-700 w-full sm:w-auto">
+                <button onclick="switchMode('ship')" id="btn-ship"
+                    class="flex-1 sm:flex-none px-6 py-2 rounded-md text-sm font-bold transition-all bg-sky-600 text-white shadow">
+                    ðŸš¢ Ship SONAR
+                </button>
+                <button onclick="switchMode('bat')" id="btn-bat"
+                    class="flex-1 sm:flex-none px-6 py-2 rounded-md text-sm font-bold transition-all text-slate-400 hover:text-white">
+                    ðŸ¦‡ Bat Echolocation
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="flex-grow relative w-full overflow-hidden bg-slate-900">
+
+        <!-- SCENARIO 1: SHIP SONAR -->
+        <section id="section-ship" class="absolute inset-0 flex flex-col">
+            <!-- Canvas Layer -->
+            <div class="relative flex-grow">
+                <canvas id="shipCanvas" class="absolute inset-0 block"></canvas>
+
+                <!-- Overlay Data -->
+                <div
+                    class="absolute top-4 left-4 bg-slate-900/80 backdrop-blur border border-slate-700 p-3 rounded-lg text-xs font-mono z-10">
+                    <div class="text-sky-400 mb-1">Speed of Sound (Water): <span class="text-white">1500 m/s</span>
+                    </div>
+                    <div class="text-yellow-400 mb-1">Time Elapsed (t): <span id="shipTime" class="text-white">0.00
+                            s</span></div>
+                    <div class="text-green-400 border-t border-slate-600 pt-1 mt-1">
+                        Distance = (v Ã— t) / 2<br>
+                        Depth: <span id="shipDepth" class="text-xl font-bold text-white">0 m</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Controls -->
+            <div class="bg-slate-800 p-4 border-t border-slate-700 z-20">
+                <div class="max-w-2xl mx-auto flex flex-col sm:flex-row items-center gap-4">
+                    <div class="w-full">
+                        <div class="flex justify-between text-xs text-slate-400 mb-1">
+                            <label>Target Depth</label>
+                            <span id="targetDepthLabel">500 m</span>
+                        </div>
+                        <input type="range" id="shipDepthSlider" min="100" max="1000" step="10" value="500"
+                            class="sonar-slider">
+                    </div>
+                    <button id="shipPingBtn"
+                        class="w-full sm:w-auto whitespace-nowrap bg-sky-600 hover:bg-sky-500 text-white font-bold py-3 px-8 rounded-xl shadow-lg shadow-sky-600/20 active:scale-95 transition-transform flex items-center justify-center gap-2">
+                        <span>ðŸ“¡</span> Send Pulse
+                    </button>
+                </div>
+            </div>
+        </section>
+
+
+        <!-- SCENARIO 2: BAT ECHOLOCATION -->
+        <section id="section-bat" class="absolute inset-0 flex flex-col hidden">
+            <!-- Canvas Layer -->
+            <div class="relative flex-grow bg-slate-950">
+                <canvas id="batCanvas" class="absolute inset-0 block"></canvas>
+
+                <!-- Overlay Data -->
+                <div
+                    class="absolute top-4 left-4 bg-slate-900/80 backdrop-blur border border-slate-700 p-3 rounded-lg text-xs font-mono z-10">
+                    <div class="text-purple-400 mb-1">Speed of Sound (Air): <span class="text-white">343 m/s</span>
+                    </div>
+                    <div class="text-yellow-400 mb-1">Time Return: <span id="batTime" class="text-white">0.000 s</span>
+                    </div>
+                    <div class="text-green-400 border-t border-slate-600 pt-1 mt-1">
+                        Prey Distance: <span id="batDistance" class="text-xl font-bold text-white">0.0 m</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Controls -->
+            <div class="bg-slate-800 p-4 border-t border-slate-700 z-20">
+                <div class="max-w-2xl mx-auto flex flex-col sm:flex-row items-center gap-4">
+                    <div class="w-full">
+                        <div class="flex justify-between text-xs text-slate-400 mb-1">
+                            <label>Moth Distance</label>
+                            <span id="mothDistLabel">5.0 m</span>
+                        </div>
+                        <input type="range" id="batDistSlider" min="1.0" max="15.0" step="0.1" value="5.0"
+                            class="bat-slider">
+                    </div>
+                    <button id="batSqueakBtn"
+                        class="w-full sm:w-auto whitespace-nowrap bg-purple-600 hover:bg-purple-500 text-white font-bold py-3 px-8 rounded-xl shadow-lg shadow-purple-600/20 active:scale-95 transition-transform flex items-center justify-center gap-2">
+                        <span>ðŸ”Š</span> Squeak
+                    </button>
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+    <script>
+        // --- Audio Context ---
+        let audioCtx;
+        function playTone(type) {
+            if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            const now = audioCtx.currentTime;
+
+            if (type === 'sonar_ping') {
+                // Classic submarine ping
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(800, now);
+                gain.gain.setValueAtTime(0, now);
+                gain.gain.linearRampToValueAtTime(0.3, now + 0.05);
+                gain.gain.exponentialRampToValueAtTime(0.001, now + 1.0);
+                osc.start(now);
+                osc.stop(now + 1.0);
+            }
+            else if (type === 'sonar_return') {
+                // Lower metallic return
+                osc.type = 'triangle';
+                osc.frequency.setValueAtTime(800, now);
+                // Pitch shift down slightly for reflection
+                osc.frequency.exponentialRampToValueAtTime(600, now + 0.1);
+                gain.gain.setValueAtTime(0.2, now);
+                gain.gain.exponentialRampToValueAtTime(0.001, now + 0.3);
+                osc.start(now);
+                osc.stop(now + 0.3);
+            }
+            else if (type === 'bat_chirp') {
+                // High frequency chirp sweep
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(8000, now); // Start high
+                osc.frequency.exponentialRampToValueAtTime(2000, now + 0.1); // Sweep down
+                gain.gain.setValueAtTime(0.1, now);
+                gain.gain.linearRampToValueAtTime(0, now + 0.1);
+                osc.start(now);
+                osc.stop(now + 0.15);
+            }
+            else if (type === 'bat_return') {
+                // Softer echo
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(4000, now);
+                gain.gain.setValueAtTime(0.1, now);
+                gain.gain.exponentialRampToValueAtTime(0.001, now + 0.1);
+                osc.start(now);
+                osc.stop(now + 0.15);
+            }
+        }
+
+        // --- Shared State ---
+        let mode = 'ship'; // 'ship' or 'bat'
+        let width, height;
+
+        // --- Scenario 1: Ship Logic ---
+        const shipCanvas = document.getElementById('shipCanvas');
+        const shipCtx = shipCanvas.getContext('2d');
+        const shipSlider = document.getElementById('shipDepthSlider');
+        const shipBtn = document.getElementById('shipPingBtn');
+        const shipTimeEl = document.getElementById('shipTime');
+        const shipDepthEl = document.getElementById('shipDepth');
+        const targetDepthLabel = document.getElementById('targetDepthLabel');
+
+        let targetDepth = 500;
+        let sonarPulse = { active: false, y: 0, direction: 1 }; // 1 = down, -1 = up
+        let shipAnimFrame;
+        const WATER_LEVEL = 100;
+
+        function drawShipScene() {
+            // Background (Sky & Water)
+            // Sky
+            const skyGrad = shipCtx.createLinearGradient(0, 0, 0, WATER_LEVEL);
+            skyGrad.addColorStop(0, '#bae6fd');
+            skyGrad.addColorStop(1, '#7dd3fc');
+            shipCtx.fillStyle = skyGrad;
+            shipCtx.fillRect(0, 0, width, WATER_LEVEL);
+
+            // Water
+            const waterGrad = shipCtx.createLinearGradient(0, WATER_LEVEL, 0, height);
+            waterGrad.addColorStop(0, '#0284c7'); // Top water
+            waterGrad.addColorStop(1, '#0c4a6e'); // Deep water
+            shipCtx.fillStyle = waterGrad;
+            shipCtx.fillRect(0, WATER_LEVEL, width, height - WATER_LEVEL);
+
+            // Calculate visuals
+            // Max depth map to canvas height (leaving margin)
+            const maxCanvasDepth = height - WATER_LEVEL - 50;
+            // Map 1000m (slider max) to maxCanvasDepth
+            const targetY = WATER_LEVEL + (targetDepth / 1000) * maxCanvasDepth;
+            const shipX = width / 2;
+
+            // Draw Ship
+            shipCtx.save();
+            shipCtx.translate(shipX, WATER_LEVEL);
+            shipCtx.fillStyle = '#64748b'; // Hull
+            shipCtx.beginPath();
+            shipCtx.moveTo(-40, 0);
+            shipCtx.lineTo(40, 0);
+            shipCtx.lineTo(30, 20);
+            shipCtx.lineTo(-30, 20);
+            shipCtx.fill();
+            // Bridge
+            shipCtx.fillStyle = '#cbd5e1';
+            shipCtx.fillRect(-15, -20, 30, 20);
+            // Mast
+            shipCtx.strokeStyle = '#475569';
+            shipCtx.lineWidth = 3;
+            shipCtx.beginPath();
+            shipCtx.moveTo(0, -20);
+            shipCtx.lineTo(0, -40);
+            shipCtx.stroke();
+            shipCtx.restore();
+
+            // Draw Target (Submarine)
+            shipCtx.save();
+            shipCtx.translate(shipX, targetY);
+            shipCtx.fillStyle = '#1e293b'; // Dark Sub
+            shipCtx.beginPath();
+            shipCtx.ellipse(0, 0, 40, 15, 0, 0, Math.PI * 2);
+            shipCtx.fill();
+            // Periscope
+            shipCtx.fillRect(-10, -25, 6, 15);
+            shipCtx.fillRect(-10, -25, 15, 4);
+            // Label
+            shipCtx.fillStyle = '#fff';
+            shipCtx.font = '10px sans-serif';
+            shipCtx.textAlign = 'center';
+            shipCtx.fillText("TARGET", 0, 5);
+            shipCtx.restore();
+
+            // Draw Pulse
+            if (sonarPulse.active) {
+                // Map logical Y to screen Y
+                // pulse.y is 0 to targetDepth
+                const pulseScreenY = WATER_LEVEL + (sonarPulse.y / 1000) * maxCanvasDepth;
+
+                shipCtx.beginPath();
+                shipCtx.arc(shipX, pulseScreenY, 10, 0, Math.PI * 2);
+
+                if (sonarPulse.direction === 1) {
+                    // Going Down
+                    shipCtx.strokeStyle = '#facc15'; // Yellow
+                    shipCtx.fillStyle = 'rgba(250, 204, 21, 0.5)';
+                    shipCtx.lineWidth = 3;
+
+                    // Wave arcs
+                    shipCtx.beginPath();
+                    shipCtx.arc(shipX, pulseScreenY, 20, 0, Math.PI, false); // Downward arc
+                    shipCtx.stroke();
+                } else {
+                    // Going Up
+                    shipCtx.strokeStyle = '#ef4444'; // Red
+                    shipCtx.fillStyle = 'rgba(239, 68, 68, 0.5)';
+
+                    shipCtx.beginPath();
+                    shipCtx.arc(shipX, pulseScreenY, 20, Math.PI, 0, false); // Upward arc
+                    shipCtx.stroke();
+                }
+                shipCtx.fill();
+            }
+        }
+
+        shipSlider.addEventListener('input', (e) => {
+            targetDepth = parseInt(e.target.value);
+            targetDepthLabel.innerText = targetDepth + " m";
+            if (!sonarPulse.active) drawShipScene();
+        });
+
+        shipBtn.addEventListener('click', () => {
+            if (sonarPulse.active) return;
+
+            playTone('sonar_ping');
+
+            sonarPulse.active = true;
+            sonarPulse.y = 0; // Starts at ship (0 depth)
+            sonarPulse.direction = 1; // Down
+
+            const speed = 1500; // m/s
+            // Visual speed factor. We don't want real time (too fast or slow depending on scale)
+            // Let's make the animation take fixed time based on depth relative to max
+            // e.g., 2 seconds for full 1000m round trip
+            const animSpeed = 15; // pixels/frame approx
+
+            const startTime = Date.now();
+            let simTime = 0;
+
+            function animateShip() {
+                if (!sonarPulse.active) return;
+
+                // Move pulse
+                // Logic: Move 0 -> target -> 0
+                if (sonarPulse.direction === 1) {
+                    sonarPulse.y += animSpeed;
+                    if (sonarPulse.y >= targetDepth) {
+                        sonarPulse.y = targetDepth;
+                        sonarPulse.direction = -1; // Reflect
+                        playTone('sonar_return');
+                        // Hit visual flare
+                    }
+                } else {
+                    sonarPulse.y -= animSpeed;
+                    if (sonarPulse.y <= 0) {
+                        sonarPulse.y = 0;
+                        sonarPulse.active = false; // Done
+                        // Final calculation update
+                    }
+                }
+
+                // Calculate Physics Time
+                // Total distance travelled so far
+                let distTravelled = (sonarPulse.direction === 1) ? sonarPulse.y : (targetDepth + (targetDepth - sonarPulse.y));
+                simTime = distTravelled / speed;
+
+                // Update UI
+                shipTimeEl.innerText = simTime.toFixed(3) + " s";
+                // Only show final correct depth when finished or progressive? 
+                // Let's show progressive calculation: d = v*t / 2
+                const calcDepth = (speed * simTime) / 2;
+                shipDepthEl.innerText = Math.floor(calcDepth) + " m";
+
+                drawShipScene();
+
+                if (sonarPulse.active) {
+                    shipAnimFrame = requestAnimationFrame(animateShip);
+                } else {
+                    // Ensure final state is clean
+                    drawShipScene();
+                }
+            }
+            animateShip();
+        });
+
+
+        // --- Scenario 2: Bat Logic ---
+        const batCanvas = document.getElementById('batCanvas');
+        const batCtx = batCanvas.getContext('2d');
+        const batSlider = document.getElementById('batDistSlider');
+        const batBtn = document.getElementById('batSqueakBtn');
+        const batTimeEl = document.getElementById('batTime');
+        const batDistEl = document.getElementById('batDistance');
+        const mothLabel = document.getElementById('mothDistLabel');
+
+        let mothDist = 5.0; // meters
+        let batPulse = { active: false, x: 0, direction: 1, waves: [] };
+
+        function drawBatScene() {
+            // Background (Night)
+            batCtx.fillStyle = '#0f172a';
+            batCtx.fillRect(0, 0, width, height);
+
+            // Draw Stars
+            batCtx.fillStyle = '#ffffff';
+            for (let i = 0; i < 30; i++) {
+                // Pseudo random based on i to keep stars static
+                const sx = (i * 123) % width;
+                const sy = (i * 321) % height;
+                batCtx.fillRect(sx, sy, 1, 1);
+            }
+
+            const centerY = height / 2;
+            const batX = 60;
+            // Map 15m to canvas width - margin
+            const maxPx = width - 100;
+            const mothX = batX + (mothDist / 15.0) * maxPx;
+
+            // Draw Bat
+            batCtx.save();
+            batCtx.translate(batX, centerY);
+
+            // Body (Brightened slightly)
+            batCtx.fillStyle = '#475569'; // Was 334155
+            batCtx.beginPath();
+            batCtx.ellipse(0, 0, 15, 25, 0, 0, Math.PI * 2);
+            batCtx.fill();
+
+            // Wings (Brightened slightly)
+            batCtx.fillStyle = '#334155'; // Was 1e293b
+            batCtx.beginPath();
+            // Left Wing
+            batCtx.moveTo(-10, -5);
+            batCtx.quadraticCurveTo(-40, -30, -50, 0);
+            batCtx.quadraticCurveTo(-30, 20, -10, 10);
+            // Right Wing
+            batCtx.moveTo(10, -5);
+            batCtx.quadraticCurveTo(40, -30, 50, 0);
+            batCtx.quadraticCurveTo(30, 20, 10, 10);
+            batCtx.fill();
+
+            // Eyes (React if pulse returns)
+            batCtx.fillStyle = (!batPulse.active && batDistEl.innerText !== "0.0 m") ? '#fbbf24' : '#ef4444';
+            batCtx.beginPath();
+            batCtx.arc(-5, -10, 2, 0, Math.PI * 2);
+            batCtx.arc(5, -10, 2, 0, Math.PI * 2);
+            batCtx.fill();
+
+            batCtx.restore();
+
+            // Draw Moth
+            batCtx.save();
+            batCtx.translate(mothX, centerY);
+            batCtx.fillStyle = '#e2e8f0'; // White moth
+            batCtx.beginPath();
+            batCtx.moveTo(0, 0);
+            batCtx.lineTo(-10, -10);
+            batCtx.lineTo(-10, 10);
+            batCtx.fill();
+            batCtx.beginPath();
+            batCtx.moveTo(0, 0);
+            batCtx.lineTo(10, -10);
+            batCtx.lineTo(10, 10);
+            batCtx.fill();
+            batCtx.restore();
+
+            // Draw Echolocation Waves
+            if (batPulse.active) {
+                batCtx.lineWidth = 2;
+                batCtx.noFill = true;
+
+                // Draw multiple arcs
+                const pulsePx = (batPulse.x / 15.0) * maxPx; // Convert logical distance to pixels
+
+                if (batPulse.direction === 1) {
+                    batCtx.strokeStyle = 'rgba(168, 85, 247, 0.8)'; // Purple
+                    // Draw 3 arcs
+                    for (let i = 0; i < 3; i++) {
+                        batCtx.beginPath();
+                        // Arc centers at Bat
+                        batCtx.arc(batX, centerY, Math.max(0, pulsePx - i * 15), -0.5, 0.5);
+                        batCtx.stroke();
+                    }
+                } else {
+                    batCtx.strokeStyle = 'rgba(34, 197, 94, 0.8)'; // Green (Echo)
+                    // Draw 3 arcs reflecting back
+                    // Center at Moth? No, echo originates from moth
+                    const distFromMoth = (mothDist - batPulse.x); // how far echo travelled
+                    const distPx = (distFromMoth / 15.0) * maxPx;
+
+                    for (let i = 0; i < 3; i++) {
+                        batCtx.beginPath();
+                        batCtx.arc(mothX, centerY, Math.max(0, distPx - i * 15), Math.PI - 0.5, Math.PI + 0.5);
+                        batCtx.stroke();
+                    }
+                }
+            }
+        }
+
+        batSlider.addEventListener('input', (e) => {
+            mothDist = parseFloat(e.target.value);
+            mothLabel.innerText = mothDist.toFixed(1) + " m";
+            if (!batPulse.active) drawBatScene();
+        });
+
+        batBtn.addEventListener('click', () => {
+            if (batPulse.active) return;
+
+            playTone('bat_chirp');
+            batDistEl.innerText = "0.0 m"; // Reset result
+            batPulse.active = true;
+            batPulse.x = 0;
+            batPulse.direction = 1;
+
+            const speed = 343; // m/s (Air)
+            const animSpeed = 0.15; // Logical meters per frame
+
+            function animateBat() {
+                if (!batPulse.active) return;
+
+                if (batPulse.direction === 1) {
+                    batPulse.x += animSpeed;
+                    if (batPulse.x >= mothDist) {
+                        batPulse.x = mothDist;
+                        batPulse.direction = -1;
+                        playTone('bat_return');
+                    }
+                } else {
+                    batPulse.x -= animSpeed;
+                    if (batPulse.x <= 0) {
+                        batPulse.x = 0;
+                        batPulse.active = false;
+
+                        // Show result
+                        batDistEl.innerText = mothDist.toFixed(1) + " m";
+                    }
+                }
+
+                // Time calc
+                let distTravelled = (batPulse.direction === 1) ? batPulse.x : (mothDist + (mothDist - batPulse.x));
+                let t = distTravelled / speed;
+                batTimeEl.innerText = t.toFixed(3) + " s";
+
+                drawBatScene();
+
+                if (batPulse.active) requestAnimationFrame(animateBat);
+                else drawBatScene(); // Final draw
+            }
+            animateBat();
+        });
+
+        // --- General ---
+        function resize() {
+            // FIX: Measure the MAIN container, which is always visible
+            const mainContainer = document.querySelector('main');
+
+            if (mainContainer) {
+                width = mainContainer.clientWidth;
+                height = mainContainer.clientHeight;
+
+                shipCanvas.width = width;
+                shipCanvas.height = height;
+                batCanvas.width = width;
+                batCanvas.height = height;
+
+                if (mode === 'ship') drawShipScene();
+                else drawBatScene();
+            }
+        }
+        window.addEventListener('resize', resize);
+
+        function switchMode(newMode) {
+            mode = newMode;
+            const btnShip = document.getElementById('btn-ship');
+            const btnBat = document.getElementById('btn-bat');
+            const secShip = document.getElementById('section-ship');
+            const secBat = document.getElementById('section-bat');
+
+            if (mode === 'ship') {
+                secShip.classList.remove('hidden');
+                secBat.classList.add('hidden');
+
+                btnShip.classList.add('bg-sky-600', 'text-white', 'shadow');
+                btnShip.classList.remove('text-slate-400');
+
+                btnBat.classList.remove('bg-purple-600', 'text-white', 'shadow');
+                btnBat.classList.add('text-slate-400');
+
+                resize();
+                drawShipScene();
+            } else {
+                secShip.classList.add('hidden');
+                secBat.classList.remove('hidden');
+
+                btnShip.classList.remove('bg-sky-600', 'text-white', 'shadow');
+                btnShip.classList.add('text-slate-400');
+
+                btnBat.classList.add('bg-purple-600', 'text-white', 'shadow');
+                btnBat.classList.remove('text-slate-400');
+
+                resize();
+                drawBatScene();
+            }
+        }
+
+        // Init
+        // Delay slightly to ensure layout is ready
+        setTimeout(() => {
+            resize();
+            drawShipScene();
+        }, 100);
+
+    </script>
+</body>
+
+</html>

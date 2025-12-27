@@ -1,0 +1,515 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>⚛️</text></svg>">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Magnet Null Points Simulation</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" />
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: #1a1a1a;
+            color: white;
+            font-family: 'Segoe UI', sans-serif;
+        }
+
+        canvas {
+            display: block;
+        }
+
+        .panel {
+            background: rgba(30, 30, 30, 0.9);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+        }
+
+        input[type=range] {
+            -webkit-appearance: none;
+            width: 100%;
+            background: transparent;
+        }
+
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            height: 16px;
+            width: 16px;
+            border-radius: 50%;
+            background: #60a5fa;
+            margin-top: -6px;
+            cursor: pointer;
+        }
+
+        input[type=range]::-webkit-slider-runnable-track {
+            width: 100%;
+            height: 4px;
+            background: #4b5563;
+            border-radius: 2px;
+        }
+
+        .compass-needle {
+            transition: transform 0.1s linear;
+        }
+
+        /* Touch action manipulation helps prevent zooming/scrolling while interacting */
+        canvas {
+            touch-action: none;
+        }
+    </style>
+</head>
+
+<body class="h-screen w-screen flex flex-col items-center justify-center relative">
+
+    <!-- Canvas Container -->
+    <div class="relative w-full h-full">
+        <canvas id="simCanvas"></canvas>
+
+        <!-- Field Probe (Follows Mouse/Touch) -->
+        <div id="probe" class="absolute pointer-events-none hidden z-50 transform -translate-x-1/2 -translate-y-1/2"
+            style="width: 40px; height: 40px;">
+            <div class="w-full h-full relative flex items-center justify-center">
+                <!-- Compass Housing -->
+                <div class="absolute w-8 h-8 rounded-full border-2 border-white/50 bg-gray-900/80 shadow-lg"></div>
+                <!-- Needle -->
+                <div id="probeNeedle" class="w-1 h-6 bg-transparent relative compass-needle">
+                    <div class="absolute top-0 left-0 w-full h-1/2 bg-red-500 rounded-t-sm"></div>
+                    <div class="absolute bottom-0 left-0 w-full h-1/2 bg-blue-500 rounded-b-sm"></div>
+                </div>
+            </div>
+            <div
+                class="absolute top-8 left-1/2 transform -translate-x-1/2 text-xs text-white/80 whitespace-nowrap bg-black/50 px-1 rounded">
+                B-Net</div>
+        </div>
+    </div>
+
+    <!-- UI Overlay -->
+    <div class="absolute top-4 left-4 p-4 rounded-xl panel w-[90%] max-w-xs sm:max-w-sm pointer-events-auto">
+        <h1 class="text-lg sm:text-xl font-bold mb-1 text-blue-400 flex items-center"><i
+                class="fas fa-magnet mr-2"></i>Null Point Discovery</h1>
+        <p class="text-xs text-gray-400 mb-4">Bar Magnet (N) aligned with Earth's North.</p>
+
+        <div class="space-y-4">
+            <div>
+                <div class="flex justify-between text-sm mb-1">
+                    <span class="text-gray-300">Magnet Strength</span>
+                    <span id="strengthVal" class="text-blue-400 font-mono">100%</span>
+                </div>
+                <input type="range" id="strengthSlider" min="0" max="200" value="100">
+            </div>
+
+            <div class="flex items-center space-x-2 text-sm text-gray-300">
+                <input type="checkbox" id="showEarth" checked class="rounded text-blue-500 bg-gray-700 border-gray-600">
+                <label for="showEarth">Show Earth's Field</label>
+            </div>
+
+            <div class="flex items-center space-x-2 text-sm text-gray-300">
+                <input type="checkbox" id="showNull" checked class="rounded text-blue-500 bg-gray-700 border-gray-600">
+                <label for="showNull">Highlight Null Points</label>
+            </div>
+        </div>
+
+        <div class="mt-4 pt-4 border-t border-gray-700 text-xs text-gray-400 leading-relaxed hidden sm:block">
+            <p><strong class="text-yellow-400">Physics Insight:</strong></p>
+            <p>Along the equatorial line (East-West), the magnet's field points South, opposing Earth's Northward field.
+            </p>
+            <p class="mt-2">At the <span class="text-yellow-400 font-bold">Null Points</span>, these two fields cancel
+                exactly ($B_{net} = 0$).</p>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('simCanvas');
+        const ctx = canvas.getContext('2d');
+        const probe = document.getElementById('probe');
+        const probeNeedle = document.getElementById('probeNeedle');
+        const strengthSlider = document.getElementById('strengthSlider');
+        const strengthVal = document.getElementById('strengthVal');
+        const showEarthCb = document.getElementById('showEarth');
+        const showNullCb = document.getElementById('showNull');
+
+        // Physics Constants (Arbitrary units for visualization)
+        let width, height;
+        let centerX, centerY;
+
+        // Magnet properties
+        const magnetLength = 100; // Half-length actually used in math often, but this is visual total
+        const magnetWidth = 30;
+        let poleStrength = 4000; // Adjustable
+
+        // Earth properties
+        const earthFieldStrength = 0.8; // Uniform field pointing UP (North)
+        const earthFieldVector = { x: 0, y: -earthFieldStrength }; // Screen Y is down, so Up is -Y
+
+        // Interaction state
+        let mouseX = 0;
+        let mouseY = 0;
+        let isInteractionActive = false;
+
+        function resize() {
+            width = window.innerWidth;
+            height = window.innerHeight;
+            canvas.width = width;
+            canvas.height = height;
+            centerX = width / 2;
+            centerY = height / 2;
+        }
+        window.addEventListener('resize', resize);
+        resize();
+
+        // --- Unified Input Handling (Mouse & Touch) ---
+
+        function updateProbePosition(clientX, clientY) {
+            mouseX = clientX;
+            mouseY = clientY;
+            isInteractionActive = true;
+
+            // Move probe
+            probe.style.left = mouseX + 'px';
+            probe.style.top = mouseY + 'px';
+
+            // Calculate field at position
+            const b = calculateNetField(mouseX, mouseY);
+
+            if (b.mag > 0.001) {
+                // Calculate angle for needle
+                // Math.atan2(y, x). 0 is Right. -PI/2 is Up.
+                // Needle visual: Red is Top. We want Red pointing in field direction.
+                // Standard rotation 0 is East. We add PI/2 so 0 becomes North (Up).
+                const angle = Math.atan2(b.y, b.x);
+                probeNeedle.style.transform = `rotate(${angle + Math.PI / 2}rad)`;
+                probe.classList.remove('hidden');
+            } else {
+                probe.classList.add('hidden');
+            }
+        }
+
+        // Mouse Events
+        window.addEventListener('mousemove', (e) => {
+            updateProbePosition(e.clientX, e.clientY);
+        });
+
+        canvas.addEventListener('mouseleave', () => {
+            isInteractionActive = false;
+            probe.classList.add('hidden');
+        });
+
+        // Touch Events
+        window.addEventListener('touchstart', (e) => {
+            if (e.touches.length > 0) {
+                updateProbePosition(e.touches[0].clientX, e.touches[0].clientY);
+            }
+        }, { passive: false });
+
+        window.addEventListener('touchmove', (e) => {
+            if (e.touches.length > 0) {
+                // Prevent scrolling while moving probe
+                if (e.target === canvas) e.preventDefault();
+                updateProbePosition(e.touches[0].clientX, e.touches[0].clientY);
+            }
+        }, { passive: false });
+
+        window.addEventListener('touchend', () => {
+            isInteractionActive = false;
+            probe.classList.add('hidden');
+        });
+
+
+        strengthSlider.addEventListener('input', (e) => {
+            const pct = parseInt(e.target.value);
+            poleStrength = 4000 * (pct / 100);
+            strengthVal.textContent = pct + '%';
+        });
+
+        // --- Physics Engine ---
+
+        function calculateNetField(x, y) {
+            // Coordinate system relative to center
+            const rx = x - centerX;
+            const ry = y - centerY;
+
+            // Magnet Poles positions (North at Top, South at Bottom)
+            // Screen coordinates: North is Up (-y), South is Down (+y)
+            const northPoleY = -magnetLength / 2;
+            const southPoleY = magnetLength / 2;
+
+            // Distance vectors from poles to point (rx, ry)
+            // North Pole (Source of field lines)
+            const dxN = rx;
+            const dyN = ry - northPoleY;
+            const rN = Math.sqrt(dxN * dxN + dyN * dyN);
+
+            // South Pole (Sink of field lines)
+            const dxS = rx;
+            const dyS = ry - southPoleY;
+            const rS = Math.sqrt(dxS * dxS + dyS * dyS);
+
+            // Avoid singularity
+            if (rN < 5 || rS < 5) return { x: 0, y: 0, mag: 0 };
+
+            // Field from North Pole (Points AWAY)
+            // B = k * m / r^3 * vec(r)
+            const magN = poleStrength / (rN * rN * rN);
+            const bxN = magN * dxN;
+            const byN = magN * dyN;
+
+            // Field from South Pole (Points TOWARDS)
+            // Vector from Point to Pole is (-dxS, -dyS)
+            // Or subtract field pointing away: - (m/r^3 * vec(r_from_pole))
+            const magS = poleStrength / (rS * rS * rS);
+            const bxS = -magS * dxS; // Points towards pole
+            const byS = -magS * dyS;
+
+            // Earth Field
+            const bxTotal = bxN + bxS + earthFieldVector.x;
+            const byTotal = byN + byS + earthFieldVector.y;
+
+            return {
+                x: bxTotal,
+                y: byTotal,
+                mag: Math.sqrt(bxTotal * bxTotal + byTotal * byTotal)
+            };
+        }
+
+        // --- Rendering ---
+
+        function drawArrow(ctx, x, y, length, angle, color, alpha) {
+            ctx.save();
+            ctx.translate(x, y);
+            ctx.rotate(angle);
+            ctx.strokeStyle = color;
+            ctx.globalAlpha = alpha;
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(-length / 2, 0);
+            ctx.lineTo(length / 2, 0);
+            // Arrowhead
+            ctx.moveTo(length / 2 - 4, -3);
+            ctx.lineTo(length / 2, 0);
+            ctx.lineTo(length / 2 - 4, 3);
+            ctx.stroke();
+            ctx.restore();
+        }
+
+        function drawEarthField() {
+            if (!showEarthCb.checked) return;
+
+            const spacing = 60;
+            ctx.strokeStyle = '#4b5563';
+            ctx.lineWidth = 1;
+
+            for (let x = 0; x < width; x += spacing) {
+                for (let y = 0; y < height; y += spacing) {
+                    // Offset grid slightly
+                    const ox = x + (y % (spacing * 2) === 0 ? 0 : spacing / 2);
+                    // Draw Up arrow
+                    drawArrow(ctx, ox, y, 20, -Math.PI / 2, '#4b5563', 0.3);
+                }
+            }
+        }
+
+        function drawMagnet() {
+            const x = centerX - magnetWidth / 2;
+            const y = centerY - magnetLength / 2;
+
+            // Shadow
+            ctx.fillStyle = 'rgba(0,0,0,0.5)';
+            ctx.fillRect(x + 5, y + 5, magnetWidth, magnetLength);
+
+            // North Pole (Red, Top)
+            ctx.fillStyle = '#ef4444'; // Red-500
+            ctx.fillRect(x, y, magnetWidth, magnetLength / 2);
+
+            // South Pole (Blue, Bottom)
+            ctx.fillStyle = '#3b82f6'; // Blue-500
+            ctx.fillRect(x, y + magnetLength / 2, magnetWidth, magnetLength / 2);
+
+            // Labels
+            ctx.fillStyle = 'white';
+            ctx.font = 'bold 16px sans-serif';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText('N', centerX, y + magnetLength / 4);
+            ctx.fillText('S', centerX, y + 3 * magnetLength / 4);
+
+            // Outline
+            ctx.strokeStyle = 'white';
+            ctx.lineWidth = 1;
+            ctx.strokeRect(x, y, magnetWidth, magnetLength);
+        }
+
+        function traceStreamline(startX, startY, color) {
+            ctx.beginPath();
+            ctx.strokeStyle = color;
+            ctx.lineWidth = 1.5;
+
+            let x = startX;
+            let y = startY;
+
+            ctx.moveTo(x, y);
+
+            // Forward trace
+            for (let i = 0; i < 200; i++) {
+                const b = calculateNetField(x, y);
+                if (b.mag < 0.01) break; // Null point or weak
+
+                const len = 10; // step size
+                const nx = b.x / b.mag;
+                const ny = b.y / b.mag;
+
+                x += nx * len;
+                y += ny * len;
+
+                ctx.lineTo(x, y);
+
+                // Stop if hitting magnet or off screen
+                if (x < 0 || x > width || y < 0 || y > height) break;
+                if (Math.abs(x - centerX) < magnetWidth / 2 && Math.abs(y - centerY) < magnetLength / 2) break;
+            }
+            ctx.stroke();
+
+            // Backward trace (to fill the line)
+            x = startX;
+            y = startY;
+            ctx.beginPath();
+            ctx.moveTo(x, y);
+            for (let i = 0; i < 200; i++) {
+                const b = calculateNetField(x, y);
+                if (b.mag < 0.01) break;
+
+                const len = 10;
+                const nx = b.x / b.mag;
+                const ny = b.y / b.mag;
+
+                // Go opposite direction
+                x -= nx * len;
+                y -= ny * len;
+
+                ctx.lineTo(x, y);
+
+                if (x < 0 || x > width || y < 0 || y > height) break;
+                if (Math.abs(x - centerX) < magnetWidth / 2 && Math.abs(y - centerY) < magnetLength / 2) break;
+            }
+            ctx.stroke();
+        }
+
+        function drawFieldLines() {
+            // Seed points
+            const seeds = [];
+
+            // Around the magnet
+            const radius = 60;
+            for (let angle = 0; angle < Math.PI * 2; angle += Math.PI / 8) {
+                seeds.push({
+                    x: centerX + Math.cos(angle) * radius,
+                    y: centerY + Math.sin(angle) * radius
+                });
+            }
+
+            // Grid of seeds for Earth field interaction
+            for (let x = 0; x <= width; x += width / 6) {
+                for (let y = 0; y <= height; y += height / 6) {
+                    if (Math.abs(x - centerX) > 80 || Math.abs(y - centerY) > 80) {
+                        seeds.push({ x, y });
+                    }
+                }
+            }
+
+            seeds.forEach(seed => {
+                // Determine opacity based on strength? Or just draw.
+                // Use white with low opacity
+                traceStreamline(seed.x, seed.y, 'rgba(200, 200, 255, 0.3)');
+            });
+        }
+
+        function findAndDrawNullPoints() {
+            if (!showNullCb.checked) return;
+            if (poleStrength === 0) return; // Only Earth field, no null points
+
+            // Theoretical location on Equator (y = centerY)
+            // B_magnet = B_earth
+            // B_magnet_y approx = (mu/4pi) * M / r^3  (simplified dipole on equator)
+            // or use our exact mono-pole sum logic.
+
+            // We know they are on the horizontal axis (y = centerY) for this geometry.
+            // Let's scan along X from center outwards to find B_y = 0 (or min B).
+            // Actually, B_y_magnet points DOWN. B_earth points UP.
+            // We just need where B_total_y crosses zero.
+
+            // Scan Right side
+            let nullRightX = -1;
+            for (let x = centerX + 20; x < width; x += 2) {
+                const b = calculateNetField(x, centerY);
+                // We are looking for a sign change in Y component or min magnitude
+                // Since Bx is 0 on symmetry axis, we just check By.
+                // Close to magnet By is dominated by magnet (Down/Positive Y).
+                // Far away By is dominated by Earth (Up/Negative Y).
+                // We look for transition.
+                if (b.y < 0) { // Crossed zero
+                    nullRightX = x;
+                    break;
+                }
+            }
+
+            // By symmetry, Left side is mirror
+            if (nullRightX > 0) {
+                drawNullMarker(nullRightX, centerY);
+                drawNullMarker(centerX - (nullRightX - centerX), centerY);
+            }
+        }
+
+        function drawNullMarker(x, y) {
+            // Glowing pulses
+            const time = Date.now() / 500;
+            const radius = 10 + Math.sin(time * 5) * 3;
+
+            ctx.save();
+            ctx.translate(x, y);
+
+            // Glow
+            const grad = ctx.createRadialGradient(0, 0, 2, 0, 0, 20);
+            grad.addColorStop(0, 'rgba(255, 255, 0, 1)');
+            grad.addColorStop(1, 'rgba(255, 255, 0, 0)');
+            ctx.fillStyle = grad;
+            ctx.beginPath();
+            ctx.arc(0, 0, 20, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Crosshair
+            ctx.strokeStyle = '#ffff00';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(-8, -8);
+            ctx.lineTo(8, 8);
+            ctx.moveTo(8, -8);
+            ctx.lineTo(-8, 8);
+            ctx.stroke();
+
+            // Text label
+            ctx.fillStyle = '#ffff00';
+            ctx.font = '12px monospace';
+            ctx.fillText("NULL POINT", 0, -25);
+
+            ctx.restore();
+        }
+
+        function animate() {
+            ctx.clearRect(0, 0, width, height);
+
+            drawEarthField();
+            drawFieldLines();
+            drawMagnet();
+            findAndDrawNullPoints();
+
+            requestAnimationFrame(animate);
+        }
+
+        animate();
+
+    </script>
+</body>
+
+</html>

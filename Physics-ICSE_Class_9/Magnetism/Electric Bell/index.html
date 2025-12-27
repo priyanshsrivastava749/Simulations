@@ -1,0 +1,550 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>⚛️</text></svg>">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Electric Bell Circuit Simulation</title>
+
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <!-- React & ReactDOM -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+
+    <!-- Babel (for JSX) -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+    </style>
+</head>
+
+<body class="bg-slate-50">
+
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useRef } = React;
+
+        // --- INLINE ICONS ---
+        const RotateCcw = ({ size = 24, className = "" }) => (
+            <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74-2.74L3 12" /><path d="M3 3v9h9" /></svg>
+        );
+        const Volume2 = ({ size = 24, className = "" }) => (
+            <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" /><path d="M15.54 8.46a5 5 0 0 1 0 7.07" /><path d="M19.07 4.93a10 10 0 0 1 0 14.14" /></svg>
+        );
+        const VolumeX = ({ size = 24, className = "" }) => (
+            <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" /><line x1="23" y1="9" x2="17" y2="15" /><line x1="17" y1="9" x2="23" y2="15" /></svg>
+        );
+
+        // --- MAIN COMPONENT ---
+        const ElectricBell = () => {
+            // Simulation State
+            const [power, setPower] = useState(false);
+            const [speed, setSpeed] = useState(0.5); // 0.1 (slow) to 1.0 (fast)
+            const [phase, setPhase] = useState('REST'); // REST, MAGNETIZING, MOVING_IN, STRIKE, BREAK, RETURNING, CONTACT
+            const [soundEnabled, setSoundEnabled] = useState(true);
+
+            // Physics / Animation Values
+            const [armatureX, setArmatureX] = useState(0); // 0 = resting (touching screw), 1 = fully attracted (hit gong)
+            const [currentFlowing, setCurrentFlowing] = useState(false);
+            const [sparkVisible, setSparkVisible] = useState(false);
+            const [gongVibration, setGongVibration] = useState(0);
+
+            const animationRef = useRef();
+            const lastTimeRef = useRef(0);
+            const audioCtxRef = useRef(null);
+
+            // Constants
+            const BASE_SPEED = 0.05;
+
+            // --- AUDIO SYSTEM ---
+            const playGongSound = () => {
+                if (!soundEnabled) return;
+
+                // Init AudioContext on demand (must be after user interaction)
+                if (!audioCtxRef.current) {
+                    audioCtxRef.current = new (window.AudioContext || window.webkitAudioContext)();
+                }
+                const ctx = audioCtxRef.current;
+                if (ctx.state === 'suspended') ctx.resume();
+
+                const t = ctx.currentTime;
+
+                // Synthesis: 3 dissonant sine waves for metallic sound
+                const freqs = [500, 720, 940];
+                const gains = [0.4, 0.2, 0.1];
+
+                freqs.forEach((f, i) => {
+                    const osc = ctx.createOscillator();
+                    const gain = ctx.createGain();
+
+                    osc.frequency.value = f;
+                    osc.type = 'sine';
+
+                    gain.gain.setValueAtTime(0, t);
+                    gain.gain.linearRampToValueAtTime(gains[i], t + 0.01); // Attack
+                    gain.gain.exponentialRampToValueAtTime(0.001, t + 0.8); // Decay
+
+                    osc.connect(gain);
+                    gain.connect(ctx.destination);
+
+                    osc.start(t);
+                    osc.stop(t + 0.8);
+                });
+            };
+
+            // Animation Loop
+            const animate = (time) => {
+                if (lastTimeRef.current === 0) lastTimeRef.current = time;
+                const delta = time - lastTimeRef.current;
+                lastTimeRef.current = time;
+
+                // Time factor based on slider
+                const dt = delta * speed * 0.1;
+
+                setPhase((prevPhase) => {
+                    let nextPhase = prevPhase;
+
+                    switch (prevPhase) {
+                        case 'REST':
+                            if (power) nextPhase = 'MAGNETIZING';
+                            setCurrentFlowing(true);
+                            setArmatureX(0);
+                            break;
+
+                        case 'MAGNETIZING':
+                            if (!power) { nextPhase = 'REST'; break; }
+                            nextPhase = 'MOVING_IN';
+                            setCurrentFlowing(true);
+                            break;
+
+                        case 'MOVING_IN':
+                            if (!power) { nextPhase = 'RETURNING'; break; }
+                            setArmatureX(old => {
+                                const next = old + (BASE_SPEED * dt);
+                                if (next >= 1) {
+                                    nextPhase = 'STRIKE';
+                                    return 1;
+                                }
+                                return next;
+                            });
+                            break;
+
+                        case 'STRIKE':
+                            // Hit the gong
+                            setGongVibration(1);
+                            playGongSound(); // TRIGGER SOUND
+                            nextPhase = 'BREAK';
+                            break;
+
+                        case 'BREAK':
+                            // Circuit breaks at the screw
+                            setCurrentFlowing(false);
+                            nextPhase = 'RETURNING';
+                            break;
+
+                        case 'RETURNING':
+                            setArmatureX(old => {
+                                const next = old - (BASE_SPEED * dt * 0.8);
+                                if (next <= 0) { nextPhase = 'CONTACT'; return 0; }
+                                return next;
+                            });
+                            setGongVibration(v => Math.max(0, v - 0.05 * dt));
+                            break;
+
+                        case 'CONTACT':
+                            // Spark!
+                            setSparkVisible(true);
+                            setTimeout(() => setSparkVisible(false), 200 * (1 / speed));
+                            nextPhase = power ? 'MAGNETIZING' : 'REST';
+                            break;
+
+                        default:
+                            nextPhase = 'REST';
+                    }
+                    return nextPhase;
+                });
+
+                animationRef.current = requestAnimationFrame(animate);
+            };
+
+            useEffect(() => {
+                if (power) {
+                    animationRef.current = requestAnimationFrame(animate);
+                } else {
+                    if (phase !== 'REST' && armatureX > 0) {
+                        animationRef.current = requestAnimationFrame(animate);
+                    } else {
+                        cancelAnimationFrame(animationRef.current);
+                        setPhase('REST');
+                        setArmatureX(0);
+                        setCurrentFlowing(false);
+                    }
+                }
+                return () => cancelAnimationFrame(animationRef.current);
+            }, [power, phase, armatureX]);
+
+            // Handlers
+            const togglePower = () => {
+                // Ensure audio context is ready on user interaction
+                if (soundEnabled && !audioCtxRef.current) {
+                    audioCtxRef.current = new (window.AudioContext || window.webkitAudioContext)();
+                }
+                if (audioCtxRef.current?.state === 'suspended') {
+                    audioCtxRef.current.resume();
+                }
+
+                setPower(!power);
+                if (!power) lastTimeRef.current = 0;
+            };
+
+            const handleReset = () => {
+                setPower(false);
+                setArmatureX(0);
+                setPhase('REST');
+                setCurrentFlowing(false);
+                setGongVibration(0);
+            };
+
+            return (
+                <div className="flex flex-col items-center w-full min-h-screen bg-slate-50 p-6 font-sans text-slate-800">
+
+                    {/* Header */}
+                    <div className="text-center mb-8">
+                        <h1 className="text-3xl font-bold text-slate-900">Electric Bell Circuit</h1>
+                        <p className="text-slate-500 mt-2">Slow down time to see the <span
+                            className="text-amber-600 font-bold">Make-and-Break</span> mechanism in action.</p>
+                    </div>
+
+                    <div className="flex flex-col lg:flex-row gap-8 w-full max-w-6xl">
+
+                        {/* LEFT: Controls */}
+                        <div className="w-full lg:w-1/3 flex flex-col gap-6">
+
+                            {/* Main Card */}
+                            <div className="bg-white p-6 rounded-xl shadow-lg border border-slate-200">
+                                <h2 className="text-lg font-bold mb-4 flex items-center justify-between">
+                                    <div className="flex items-center gap-2">
+                                        <RotateCcw size={18} /> Controls
+                                    </div>
+                                    {/* Mute Button */}
+                                    <button onClick={() => setSoundEnabled(!soundEnabled)}
+                                        className={`p-2 rounded-full transition-colors ${soundEnabled ? 'text-blue-600 bg-blue-50' : 'text-slate-400 bg-slate-100'}`}
+                                        title={soundEnabled ? "Mute Sound" : "Enable Sound"}>
+                                        {soundEnabled ? <Volume2 size={20} /> : <VolumeX size={20} />}
+                                    </button>
+                                </h2>
+
+                                {/* Power Switch */}
+                                <button onClick={togglePower} className={`w-full py-4 rounded-lg font-bold text-xl flex items-center
+                                    justify-center gap-3 transition-all mb-6 ${power
+                                        ? 'bg-red-500 text-white shadow-red-200 shadow-lg hover:bg-red-600'
+                                        : 'bg-green-500 text-white shadow-green-200 shadow-lg hover:bg-green-600'}`}>
+                                    <PowerIcon active={power} />
+                                    {power ? 'SWITCH OFF' : 'SWITCH ON'}
+                                </button>
+
+                                {/* Speed Slider */}
+                                <div className="mb-6 bg-slate-50 p-4 rounded-lg border border-slate-100">
+                                    <div className="flex justify-between mb-2">
+                                        <label className="text-sm font-semibold text-slate-700">Simulation Speed</label>
+                                        <span className="text-xs font-mono bg-slate-200 px-2 rounded text-slate-600">{(speed *
+                                            100).toFixed(0)}%</span>
+                                    </div>
+                                    <input type="range" min="0.05" max="1" step="0.05" value={speed} onChange={(e) =>
+                                        setSpeed(parseFloat(e.target.value))}
+                                        className="w-full h-2 bg-slate-300 rounded-lg appearance-none cursor-pointer accent-blue-600"
+                                    />
+                                    <div className="flex justify-between text-xs text-slate-400 mt-2">
+                                        <span>Slow Motion</span>
+                                        <span>Real Time</span>
+                                    </div>
+                                </div>
+
+                                {/* Status Panel */}
+                                <div className="space-y-2">
+                                    <StatusItem label="Circuit" active={currentFlowing} onColor="bg-yellow-400"
+                                        offColor="bg-slate-200" />
+                                    <StatusItem label="Electromagnet" active={currentFlowing} onColor="bg-red-500"
+                                        offColor="bg-slate-200" />
+                                    <StatusItem label="Contact Point" active={phase === 'CONTACT' || phase === 'REST' ||
+                                        phase === 'MAGNETIZING'} onColor="bg-green-500" offColor="bg-red-200 text-red-800"
+                                        textOn="CLOSED" textOff="OPEN" />
+                                </div>
+
+                            </div>
+
+                            {/* Explanation */}
+                            <div className="bg-blue-50 p-6 rounded-xl border border-blue-100 text-sm text-blue-900">
+                                <h3 className="font-bold mb-2 flex items-center gap-2">
+                                    <Volume2 size={16} /> How it works
+                                </h3>
+                                <ol className="list-decimal list-inside space-y-2 marker:font-bold">
+                                    <li>Switch is ON, current flows through the screw.</li>
+                                    <li>Electromagnet turns ON and pulls the armature.</li>
+                                    <li>Hammer hits the gong (<span className="font-bold">DING!</span>).</li>
+                                    <li>Movement breaks contact at the screw.</li>
+                                    <li>Circuit breaks, magnet turns OFF.</li>
+                                    <li>Spring pulls armature back, contact is remade.</li>
+                                    <li>Repeat!</li>
+                                </ol>
+                            </div>
+                        </div>
+
+                        {/* RIGHT: Visualization */}
+                        <div
+                            className="w-full lg:w-2/3 bg-white rounded-xl shadow-2xl overflow-hidden border border-slate-200 relative min-h-[500px]">
+
+                            {/* Circuit Background Grid */}
+                            <div className="absolute inset-0 opacity-10"
+                                style={{
+                                    backgroundImage: 'radial-gradient(#94a3b8 1px, transparent 1px)',
+                                    backgroundSize: '20px 20px'
+                                }}>
+                            </div>
+
+                            <svg className="w-full h-full absolute inset-0 pointer-events-none" viewBox="0 0 600 400">
+
+                                {/* --- DEFS --- */}
+                                <defs>
+                                    <linearGradient id="coilGradient" x1="0" y1="0" x2="1" y2="0">
+                                        <stop offset="0%" stopColor="#b45309" />
+                                        <stop offset="50%" stopColor="#d97706" />
+                                        <stop offset="100%" stopColor="#b45309" />
+                                    </linearGradient>
+                                    <radialGradient id="gongGradient" cx="0.5" cy="0.5" r="0.5">
+                                        <stop offset="0%" stopColor="#fcd34d" />
+                                        <stop offset="80%" stopColor="#d97706" />
+                                        <stop offset="100%" stopColor="#92400e" />
+                                    </radialGradient>
+                                    <filter id="glow">
+                                        <feGaussianBlur stdDeviation="2.5" result="coloredBlur" />
+                                        <feMerge>
+                                            <feMergeNode in="coloredBlur" />
+                                            <feMergeNode in="SourceGraphic" />
+                                        </feMerge>
+                                    </filter>
+                                </defs>
+
+                                {/* --- WIRES --- */}
+                                <g strokeWidth="4" strokeLinecap="round" fill="none">
+                                    {/* Battery to Switch */}
+                                    <path d="M 50 350 L 50 50 L 150 50" stroke="#334155" />
+                                    {/* Switch Area (Visualized in React UI, but wire continues) */}
+                                    <path d="M 200 50 L 350 50 L 350 180" stroke="#334155" /> {/* To Contact Screw */}
+
+                                    {/* Armature Base to Coil */}
+                                    <path d="M 300 320 L 300 350 L 220 350 L 220 280" stroke="#334155" />
+
+                                    {/* Coil to Battery */}
+                                    <path d="M 180 280 L 180 350 L 80 350" stroke="#334155" />
+
+                                    {/* Current Animation (Yellow Dashes) */}
+                                    {currentFlowing && (
+                                        <g stroke="#facc15" strokeDasharray="10,10" className="animate-[dash_1s_linear_infinite]">
+                                            <style>
+                                                {
+                                                    `@keyframes dash {
+                                                    to {
+                                                        stroke-dashoffset: -20;
+                                                    }
+                                                }
+
+                                                `
+                                                }
+                                            </style>
+                                            <path d="M 50 350 L 50 50 L 150 50" className="animate-[dash_1s_linear_infinite]" />
+                                            <path d="M 200 50 L 350 50 L 350 180" className="animate-[dash_1s_linear_infinite]" />
+                                            <path d="M 300 320 L 300 350 L 220 350 L 220 280"
+                                                className="animate-[dash_1s_linear_infinite]" />
+                                            <path d="M 180 280 L 180 350 L 80 350" className="animate-[dash_1s_linear_infinite]" />
+                                        </g>
+                                    )}
+                                </g>
+
+
+                                {/* --- COMPONENTS --- */}
+
+                                {/* 1. BATTERY */}
+                                <g transform="translate(50, 335)">
+                                    <rect x="0" y="0" width="30" height="30" rx="4" fill="#1e293b" />
+                                    <text x="15" y="20" textAnchor="middle" fill="white" fontSize="10"
+                                        fontFamily="monospace">9V</text>
+                                </g>
+
+                                {/* 2. GONG (The Bell) */}
+                                <g transform={`translate(450, 150) scale(${1 + gongVibration * 0.05})`}>
+                                    {/* Sound Waves */}
+                                    {gongVibration > 0.1 && (
+                                        <>
+                                            <circle cx="0" cy="0" r="60" stroke="#f59e0b" strokeWidth="2" fill="none"
+                                                opacity={gongVibration} />
+                                            <circle cx="0" cy="0" r="70" stroke="#f59e0b" strokeWidth="1" fill="none"
+                                                opacity={gongVibration * 0.5} />
+                                        </>
+                                    )}
+                                    {/* The Gong Body */}
+                                    <circle cx="0" cy="0" r="50" fill="url(#gongGradient)" stroke="#92400e" strokeWidth="2"
+                                        className="shadow-xl" />
+                                    <circle cx="0" cy="0" r="5" fill="#78350f" opacity="0.5" />
+                                </g>
+
+                                {/* 3. ELECTROMAGNET (U-Shape) */}
+                                <g transform="translate(160, 200)">
+                                    {/* Iron Core */}
+                                    <path d="M 20 0 L 20 80 Q 40 100 60 80 L 60 0" fill="none" stroke="#64748b" strokeWidth="30"
+                                        strokeLinecap="round" />
+
+                                    {/* Coils */}
+                                    {[0, 10, 20, 30, 40].map(y => (
+                                        <g key={y}>
+                                            {/* Left Coil */}
+                                            <rect x="5" y={10 + y} width="30" height="6" rx="2" fill="url(#coilGradient)" />
+                                            {/* Right Coil */}
+                                            <rect x="45" y={10 + y} width="30" height="6" rx="2" fill="url(#coilGradient)" />
+                                        </g>
+                                    ))}
+
+                                    {/* Magnetic Field (Visible when active) */}
+                                    <g opacity={currentFlowing ? 0.6 : 0} className="transition-opacity duration-200">
+                                        <path d="M 10 -20 Q 40 -40 70 -20" fill="none" stroke="#3b82f6" strokeWidth="2"
+                                            strokeDasharray="4,4" />
+                                        <path d="M 0 -30 Q 40 -60 80 -30" fill="none" stroke="#3b82f6" strokeWidth="2"
+                                            strokeDasharray="4,4" />
+                                        <path d="M -10 -40 Q 40 -80 90 -40" fill="none" stroke="#3b82f6" strokeWidth="2"
+                                            strokeDasharray="4,4" />
+                                    </g>
+                                </g>
+
+
+                                {/* 4. ARMATURE Assembly (Moves based on state) */}
+                                {/* Pivot at (300, 320). Head at approx (300, 150). Magnet pulls it Left to X=250 approx. */}
+                                {/* Calculate rotation angle based on armatureX (0 to 1) */}
+                                {/* 0 -> 0 deg. 1 -> -10 deg (tilts left) */}
+                                <g transform={`translate(300, 320) rotate(${-armatureX * 12})`}>
+                                    {/* The Springy Strip */}
+                                    <rect x="-5" y="-180" width="10" height="180" fill="#94a3b8" stroke="#475569" rx="2" />
+
+                                    {/* Soft Iron Piece (The part magnet pulls) */}
+                                    <rect x="-12" y="-120" width="24" height="40" fill="#475569" stroke="#1e293b" />
+
+                                    {/* The Hammer Arm */}
+                                    <rect x="0" y="-170" width="100" height="4" fill="#64748b" rx="2" transform="rotate(-15)" />
+
+                                    {/* The Hammer Head */}
+                                    <circle cx="90" cy="-25" r="12" fill="#334155" transform="rotate(-15)" />
+
+                                    {/* Contact Point Plate */}
+                                    {/* This is the spot the screw touches */}
+                                    <rect x="5" y="-140" width="4" height="10" fill="#facc15" />
+                                </g>
+
+
+                                {/* 5. CONTACT SCREW (Stationary) */}
+                                <g transform="translate(320, 180)">
+                                    {/* Screw Body */}
+                                    <path d="M 30 0 L -14 0" stroke="#cbd5e1" strokeWidth="6" strokeLinecap="round" />
+                                    <path d="M 30 -5 L 30 5 L 40 0 Z" fill="#94a3b8" /> {/* Screw Head */}
+                                    {/* Contact Tip */}
+                                    <circle cx="-14" cy="0" r="3" fill="#facc15" />
+
+                                    {/* Spark Effect */}
+                                    {sparkVisible && (
+                                        <g transform="translate(-14, 0)">
+                                            <path d="M 0 0 L -5 -5 M 0 0 L -6 0 M 0 0 L -5 5" stroke="#fbbf24" strokeWidth="2"
+                                                className="animate-ping" />
+                                            <circle r="4" fill="#fbbf24" filter="url(#glow)" className="animate-pulse" />
+                                        </g>
+                                    )}
+                                </g>
+
+                                {/* 6. SWITCH (Top Left) */}
+                                <g transform="translate(150, 50)">
+                                    <circle cx="0" cy="0" r="5" fill="#334155" />
+                                    <circle cx="50" cy="0" r="5" fill="#334155" />
+                                    {/* Switch Arm */}
+                                    <line x1="0" y1="0" x2="50" y2={power ? 0 : -20} stroke="#ef4444" strokeWidth="4"
+                                        className="transition-all duration-300" />
+                                </g>
+
+                                {/* Labels */}
+                                <text x="450" y="220" textAnchor="middle"
+                                    className="text-xs font-bold fill-slate-500 uppercase">Gong</text>
+                                <text x="200" y="300" textAnchor="middle"
+                                    className="text-xs font-bold fill-slate-500 uppercase">Electromagnet</text>
+                                <text x="320" y="340" textAnchor="middle"
+                                    className="text-xs font-bold fill-slate-500 uppercase">Armature</text>
+                                <text x="370" y="175" textAnchor="middle"
+                                    className="text-xs font-bold fill-slate-500 uppercase">Contact Screw</text>
+
+                            </svg>
+
+                            {/* Overlay Controls for direct interaction */}
+                            <div
+                                className="absolute top-4 right-4 bg-white/80 backdrop-blur p-2 rounded-lg shadow border border-slate-200">
+                                <div className="text-xs font-bold text-slate-500 mb-1">ZOOM LENS</div>
+                                <div className="w-32 h-32 border-2 border-slate-400 rounded-full overflow-hidden relative bg-white">
+                                    {/* Magnified view of Contact Screw logic */}
+                                    {/* We just duplicate the critical SVG part and scale it up drastically */}
+                                    <svg viewBox="280 160 60 40" className="w-full h-full">
+                                        {/* Simplified Armature Strip */}
+                                        <rect x="295" y="140" width="10" height="180" fill="#94a3b8" stroke="#475569"
+                                            transform={`translate(300, 320) rotate(${-armatureX * 12}) translate(-300, -320)`} />
+                                        {/* Contact Plate */}
+                                        <rect x="305" y="180" width="4" height="10" fill="#facc15" transform={`translate(300, 320)
+                                            rotate(${-armatureX * 12}) translate(-300, -320)`} />
+
+                                        {/* Screw */}
+                                        <g transform="translate(320, 180)">
+                                            <path d="M 30 0 L -14 0" stroke="#cbd5e1" strokeWidth="6" strokeLinecap="round" />
+                                            <circle cx="-14" cy="0" r="3" fill="#facc15" />
+                                            {sparkVisible && (
+                                                <circle cx="-14" cy="0" r="5" fill="#fbbf24" filter="url(#glow)" />
+                                            )}
+                                        </g>
+                                    </svg>
+                                    {/* Crosshairs */}
+                                    <div
+                                        className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-30">
+                                        <div className="w-full h-px bg-red-500"></div>
+                                        <div className="h-full w-px bg-red-500 absolute"></div>
+                                    </div>
+                                </div>
+                                <div className="text-center text-[10px] mt-1 text-slate-400">Contact Point Detail</div>
+                            </div>
+
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        // Helper Components
+        const PowerIcon = ({ active }) => (
+            <div className={`relative w-6 h-6 rounded-full border-2 flex items-center justify-center ${active ? 'border-white'
+                : 'border-white/50'}`}>
+                <div className={`w-0.5 h-3 bg-current ${active ? 'bg-white' : 'bg-white/50'}`}></div>
+            </div>
+        );
+
+        const StatusItem = ({ label, active, onColor, offColor, textOn = "ON", textOff = "OFF" }) => (
+            <div className="flex justify-between items-center bg-slate-50 p-3 rounded border border-slate-100">
+                <span className="text-sm font-medium text-slate-600">{label}</span>
+                <span className={`text-xs font-bold px-2 py-1 rounded ${active ? onColor : offColor}`}>
+                    {active ? textOn : textOff}
+                </span>
+            </div>
+        );
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<ElectricBell />);
+    </script>
+</body>
+
+</html>

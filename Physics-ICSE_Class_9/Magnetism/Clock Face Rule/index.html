@@ -1,0 +1,364 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>⚛️</text></svg>">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Solenoid Polarity (Clock Face Rule)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" />
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: #0f172a;
+            /* Slate 900 */
+            color: white;
+            font-family: 'Segoe UI', sans-serif;
+        }
+
+        .glow-text {
+            text-shadow: 0 0 10px rgba(96, 165, 250, 0.7);
+        }
+
+        .switch {
+            position: relative;
+            display: inline-block;
+            width: 60px;
+            height: 34px;
+        }
+
+        .switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #ef4444;
+            /* Red for South initially? Or just grey */
+            background-color: #334155;
+            -webkit-transition: .4s;
+            transition: .4s;
+            border-radius: 34px;
+            border: 1px solid #475569;
+        }
+
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 26px;
+            width: 26px;
+            left: 4px;
+            bottom: 3px;
+            background-color: white;
+            -webkit-transition: .4s;
+            transition: .4s;
+            border-radius: 50%;
+        }
+
+        input:checked+.slider {
+            background-color: #3b82f6;
+            /* Blue for North */
+        }
+
+        input:focus+.slider {
+            box-shadow: 0 0 1px #3b82f6;
+        }
+
+        input:checked+.slider:before {
+            -webkit-transform: translateX(26px);
+            -ms-transform: translateX(26px);
+            transform: translateX(26px);
+        }
+    </style>
+</head>
+
+<body class="h-screen w-screen flex flex-col items-center justify-center">
+
+    <!-- Header / Title -->
+    <div class="absolute top-6 text-center z-10 px-4">
+        <h1 class="text-3xl font-bold text-blue-100 glow-text mb-2">Solenoid End-Face Rule</h1>
+        <p class="text-slate-400 text-sm max-w-md mx-auto">
+            Visualizing how current direction determines magnetic polarity.
+        </p>
+    </div>
+
+    <!-- Main Canvas -->
+    <div class="relative flex-grow flex items-center justify-center w-full">
+        <canvas id="simCanvas"></canvas>
+    </div>
+
+    <!-- Controls Bottom Panel -->
+    <div
+        class="absolute bottom-8 bg-slate-800/80 backdrop-blur-md p-6 rounded-2xl border border-slate-700 shadow-xl flex flex-col items-center gap-4 z-10 w-[90%] max-w-md">
+
+        <div class="flex items-center justify-between w-full px-4">
+            <span class="text-red-400 font-bold text-lg w-1/3 text-right pr-4 transition-colors duration-300"
+                id="labelCW">Clockwise</span>
+
+            <label class="switch flex-shrink-0">
+                <input type="checkbox" id="directionToggle">
+                <span class="slider"></span>
+            </label>
+
+            <span class="text-slate-500 font-bold text-lg w-1/3 text-left pl-4 transition-colors duration-300"
+                id="labelACW">Anti-Clockwise</span>
+        </div>
+
+        <div class="w-full h-px bg-slate-700 my-1"></div>
+
+        <div class="text-center">
+            <p class="text-xs text-slate-400 uppercase tracking-widest mb-1">Resulting Polarity</p>
+            <h2 id="resultLabel" class="text-4xl font-extrabold text-red-500 transition-colors duration-300">SOUTH POLE
+            </h2>
+        </div>
+
+    </div>
+
+    <script>
+        const canvas = document.getElementById('simCanvas');
+        const ctx = canvas.getContext('2d');
+        const toggle = document.getElementById('directionToggle');
+        const labelCW = document.getElementById('labelCW');
+        const labelACW = document.getElementById('labelACW');
+        const resultLabel = document.getElementById('resultLabel');
+
+        let width, height;
+        let centerX, centerY;
+        let radius;
+
+        // Animation State
+        let angleOffset = 0;
+        let isAntiClockwise = false; // False = Clockwise (South), True = Anti (North)
+
+        // Configuration
+        const PARTICLE_COUNT = 20;
+        const LETTER_SIZE = 180;
+
+        function resize() {
+            width = window.innerWidth;
+            height = window.innerHeight;
+            canvas.width = width;
+            canvas.height = height;
+            centerX = width / 2;
+            centerY = height / 2;
+            // Radius responsive to screen size
+            radius = Math.min(width, height) * 0.35;
+        }
+        window.addEventListener('resize', resize);
+        resize();
+
+        // UI Handlers
+        toggle.addEventListener('change', (e) => {
+            isAntiClockwise = e.target.checked;
+            updateUI();
+        });
+
+        function updateUI() {
+            if (isAntiClockwise) {
+                // North State
+                labelACW.className = "text-blue-400 font-bold text-lg w-1/3 text-left pl-4 transition-colors duration-300";
+                labelCW.className = "text-slate-500 font-bold text-lg w-1/3 text-right pr-4 transition-colors duration-300";
+                resultLabel.textContent = "NORTH POLE";
+                resultLabel.className = "text-4xl font-extrabold text-blue-500 transition-colors duration-300";
+            } else {
+                // South State
+                labelCW.className = "text-red-400 font-bold text-lg w-1/3 text-right pr-4 transition-colors duration-300";
+                labelACW.className = "text-slate-500 font-bold text-lg w-1/3 text-left pl-4 transition-colors duration-300";
+                resultLabel.textContent = "SOUTH POLE";
+                resultLabel.className = "text-4xl font-extrabold text-red-500 transition-colors duration-300";
+            }
+        }
+
+        // --- Drawing Helpers ---
+
+        function drawNeonCircle() {
+            // Outer Glow
+            const gradient = ctx.createRadialGradient(centerX, centerY, radius * 0.8, centerX, centerY, radius * 1.2);
+            const color = isAntiClockwise ? 'rgba(59, 130, 246, 0.2)' : 'rgba(239, 68, 68, 0.2)'; // Blue or Red
+            gradient.addColorStop(0, 'rgba(0,0,0,0)');
+            gradient.addColorStop(0.5, color);
+            gradient.addColorStop(1, 'rgba(0,0,0,0)');
+
+            ctx.fillStyle = gradient;
+            ctx.beginPath();
+            ctx.arc(centerX, centerY, radius * 1.2, 0, Math.PI * 2);
+            ctx.fill();
+
+            // The Wire
+            ctx.beginPath();
+            ctx.arc(centerX, centerY, radius, 0, Math.PI * 2);
+            ctx.strokeStyle = isAntiClockwise ? '#60a5fa' : '#f87171';
+            ctx.lineWidth = 8;
+            ctx.lineCap = 'round';
+            ctx.shadowBlur = 20;
+            ctx.shadowColor = isAntiClockwise ? '#3b82f6' : '#ef4444';
+            ctx.stroke();
+            ctx.shadowBlur = 0; // Reset
+        }
+
+        function drawCurrentParticles() {
+            const speed = 0.02;
+            if (isAntiClockwise) {
+                angleOffset -= speed; // Anti-clockwise
+            } else {
+                angleOffset += speed; // Clockwise
+            }
+
+            for (let i = 0; i < PARTICLE_COUNT; i++) {
+                const particleAngle = angleOffset + (i / PARTICLE_COUNT) * Math.PI * 2;
+
+                const x = centerX + Math.cos(particleAngle) * radius;
+                const y = centerY + Math.sin(particleAngle) * radius;
+
+                // Draw Arrowhead on particle
+                ctx.save();
+                ctx.translate(x, y);
+                // Rotate to be tangent to circle
+                // Tangent angle = particleAngle + PI/2
+                let rotation = particleAngle + Math.PI / 2;
+                if (isAntiClockwise) rotation += Math.PI; // Flip if going other way
+
+                ctx.rotate(rotation);
+
+                ctx.fillStyle = '#ffffff';
+                ctx.shadowBlur = 10;
+                ctx.shadowColor = 'white';
+
+                ctx.beginPath();
+                ctx.moveTo(-6, -6);
+                ctx.lineTo(8, 0);
+                ctx.lineTo(-6, 6);
+                ctx.fill();
+
+                ctx.restore();
+            }
+        }
+
+        function drawArrowHead(x, y, angle, size, color) {
+            ctx.save();
+            ctx.translate(x, y);
+            ctx.rotate(angle);
+            ctx.fillStyle = color;
+            ctx.shadowBlur = 15;
+            ctx.shadowColor = color;
+            ctx.beginPath();
+            ctx.moveTo(-size, -size * 0.6);
+            ctx.lineTo(size, 0);
+            ctx.lineTo(-size, size * 0.6);
+            ctx.fill();
+            ctx.restore();
+        }
+
+        function drawMnemonic() {
+            const size = radius * 0.5; // Scale letter relative to coil
+            ctx.lineWidth = 12;
+            ctx.lineCap = 'round';
+            ctx.lineJoin = 'round';
+
+            if (isAntiClockwise) {
+                // Draw 'N'
+                const color = '#60a5fa'; // Blue
+                ctx.strokeStyle = color;
+                ctx.shadowColor = color;
+                ctx.shadowBlur = 20;
+
+                const w = size * 0.7; // Width of N
+                const h = size; // Height of N
+                const x = centerX;
+                const y = centerY;
+
+                // Path for N
+                ctx.beginPath();
+                // Left vertical (bottom-up)
+                ctx.moveTo(x - w / 2, y + h / 2);
+                ctx.lineTo(x - w / 2, y - h / 2);
+                // Diagonal
+                ctx.lineTo(x + w / 2, y + h / 2);
+                // Right vertical (bottom-up)
+                ctx.lineTo(x + w / 2, y - h / 2);
+                ctx.stroke();
+
+                // Arrows for N
+                // Top-Left Tip (Should point Left to match Anti-Clockwise flow at top)
+                // Position: x - w/2, y - h/2.
+                // Flow at top is LEFT.
+                drawArrowHead(x - w / 2, y - h / 2, Math.PI, 15, color);
+
+                // Bottom-Right Tip (Should point Right to match Anti-Clockwise flow at bottom)
+                // Position: x + w/2, y + h/2
+                // Flow at bottom is RIGHT.
+                drawArrowHead(x + w / 2, y + h / 2, 0, 15, color);
+
+            } else {
+                // Draw 'S'
+                const color = '#f87171'; // Red
+                ctx.strokeStyle = color;
+                ctx.shadowColor = color;
+                ctx.shadowBlur = 20;
+
+                const w = size * 0.7;
+                const h = size;
+                const x = centerX;
+                const y = centerY;
+
+                // Path for S (Bezier curves)
+                ctx.beginPath();
+                // Start Top Right
+                ctx.moveTo(x + w / 2, y - h / 4);
+                // Top Curve
+                ctx.bezierCurveTo(x + w / 2, y - h / 2 - 20, x - w / 2, y - h / 2 - 20, x - w / 2, y - h / 4);
+                // Middle Cross
+                ctx.bezierCurveTo(x - w / 2, y, x + w / 2, y, x + w / 2, y + h / 4);
+                // Bottom Curve
+                ctx.bezierCurveTo(x + w / 2, y + h / 2 + 20, x - w / 2, y + h / 2 + 20, x - w / 2, y + h / 4);
+
+                ctx.stroke();
+
+                // Arrows for S
+                // Top Tip (Top Rightish) -> Points RIGHT (Clockwise top flow is Right)
+                // Wait. Clockwise.
+                // 12 o'clock is Right.
+                // The Top tip of S is usually drawn at the end of the top curve.
+                // Standard Diagram: The arrow is on the tip of the 'S' curve.
+                // Top tip of S is at (x+w/2, y-h/4). It curves downwards/leftwards?
+                // Let's adjust the S shape to be open-ended for arrows.
+
+                // Let's redraw S explicitly to allow arrow placement.
+                // Standard mnemonic S: Arrows are on the *ends*.
+                // Top End (Top Right): Current at Top is Right. Arrow points Right.
+                // Bottom End (Bottom Left): Current at Bottom is Left. Arrow points Left.
+
+                drawArrowHead(x + w / 2, y - h / 4, 0, 15, color); // Top Right Tip -> Right
+                drawArrowHead(x - w / 2, y + h / 4, Math.PI, 15, color); // Bottom Left Tip -> Left
+            }
+
+            ctx.shadowBlur = 0;
+        }
+
+        function animate() {
+            ctx.clearRect(0, 0, width, height);
+
+            drawNeonCircle();
+            drawCurrentParticles();
+            drawMnemonic();
+
+            requestAnimationFrame(animate);
+        }
+
+        // Initialize state
+        updateUI();
+        animate();
+
+    </script>
+</body>
+
+</html>

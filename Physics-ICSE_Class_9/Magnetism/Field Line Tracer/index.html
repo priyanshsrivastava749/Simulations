@@ -1,0 +1,591 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>⚛️</text></svg>">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Virtual Magnetic Field Lab</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f0f4f8;
+            overflow: hidden;
+            /* Prevent scrolling on mobile while dragging */
+            touch-action: none;
+        }
+
+        canvas {
+            touch-action: none;
+            box-shadow: inset 0 0 50px rgba(0, 0, 0, 0.05);
+            background-image:
+                radial-gradient(#e5e7eb 1px, transparent 1px),
+                radial-gradient(#e5e7eb 1px, transparent 1px);
+            background-size: 20px 20px;
+            background-position: 0 0, 10px 10px;
+            background-color: #ffffff;
+        }
+
+        .wood-texture {
+            background-color: #e3c08d;
+            background-image: url("data:image/svg+xml,%3Csvg width='40' height='40' viewBox='0 0 40 40' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='%23d4a76a' fill-opacity='0.4' fill-rule='evenodd'%3E%3Cpath d='M0 38.59l2.83-2.83 1.41 1.41L1.41 40H0v-1.41zM0 1.4l2.83 2.83 1.41-1.41L1.41 0H0v1.41zM38.59 40l-2.83-2.83 1.41-1.41L40 38.59V40h-1.41zM40 1.41l-2.83 2.83-1.41-1.41L38.59 0H40v1.41zM20 18.6l2.83-2.83 1.41 1.41L21.41 20l2.83 2.83-1.41 1.41L20 21.41l-2.83 2.83-1.41-1.41L18.59 20l-2.83-2.83 1.41-1.41L20 18.59z'/%3E%3C/g%3E%3C/svg%3E");
+        }
+
+        .magnet-shadow {
+            filter: drop-shadow(4px 4px 6px rgba(0, 0, 0, 0.3));
+        }
+
+        .btn {
+            transition: all 0.2s;
+        }
+
+        .btn:active {
+            transform: scale(0.95);
+        }
+    </style>
+</head>
+
+<body class="h-screen w-screen flex flex-col wood-texture text-slate-800">
+
+    <!-- Header -->
+    <header
+        class="bg-white/90 backdrop-blur-sm shadow-md p-4 flex justify-between items-center z-10 border-b border-amber-200">
+        <div class="flex items-center gap-2">
+            <div class="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center text-white font-bold">N</div>
+            <h1 class="text-xl font-bold text-slate-700 hidden sm:block">Virtual Magnetic Lab</h1>
+        </div>
+
+        <div class="flex gap-2">
+            <button id="resetBtn"
+                class="btn bg-slate-200 hover:bg-slate-300 text-slate-700 px-4 py-2 rounded-lg font-medium text-sm">
+                Clear All
+            </button>
+            <button id="finishBtn"
+                class="btn bg-green-600 hover:bg-green-700 text-white px-6 py-2 rounded-lg font-bold shadow-sm disabled:opacity-50 disabled:cursor-not-allowed">
+                Finish Line
+            </button>
+        </div>
+    </header>
+
+    <!-- Main Workspace -->
+    <main class="flex-1 relative flex items-center justify-center overflow-hidden p-4">
+
+        <!-- The Lab Bench -->
+        <div class="relative shadow-2xl rounded-xl overflow-hidden border-4 border-amber-800/20 bg-white">
+            <canvas id="labCanvas"></canvas>
+
+            <!-- Floating Controls / Instructions -->
+            <div
+                class="absolute top-4 left-4 bg-white/90 backdrop-blur p-4 rounded-lg shadow-lg max-w-xs border border-slate-200 pointer-events-none select-none">
+                <h3 class="font-bold text-slate-700 mb-2">Instructions</h3>
+                <ul class="text-sm space-y-2 text-slate-600 list-disc pl-4">
+                    <li>Drag compass to a <span class="text-green-600 font-bold">Green Dot</span>.</li>
+                    <li>Align compass tail with previous dots.</li>
+                    <li>Click <strong>"Mark Dot"</strong> to plot field.</li>
+                    <li>Create 5-6 points, then click <strong>Finish</strong>.</li>
+                </ul>
+            </div>
+
+            <!-- Action Button (Floating near bottom) -->
+            <div class="absolute bottom-6 left-1/2 transform -translate-x-1/2 flex gap-4">
+                <button id="markBtn"
+                    class="btn bg-blue-600 hover:bg-blue-700 text-white px-8 py-3 rounded-full font-bold shadow-lg flex items-center gap-2 text-lg disabled:opacity-50 disabled:bg-slate-500">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24"
+                        stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                    </svg>
+                    Mark Dot (Space)
+                </button>
+            </div>
+        </div>
+
+    </main>
+
+    <script>
+        const canvas = document.getElementById('labCanvas');
+        const ctx = canvas.getContext('2d');
+        const markBtn = document.getElementById('markBtn');
+        const finishBtn = document.getElementById('finishBtn');
+        const resetBtn = document.getElementById('resetBtn');
+
+        // --- Configuration ---
+        let width, height;
+        const magnetWidth = 240;
+        const magnetHeight = 60;
+        const poleOffset = 0.85; // Poles are slightly inside the physical bar
+
+        // Physics constants
+        const compassRadius = 25;
+        const snapDistance = 40; // Pixel distance to snap tail to previous dot
+
+        // State
+        const state = {
+            magnet: { x: 0, y: 0 }, // Center of magnet
+            compass: { x: 0, y: 0, angle: 0, dragging: false },
+            currentLine: [], // Array of points {x, y} for the line currently being drawn
+            completedLines: [], // Array of arrays
+            isSnapping: false, // Visual feedback state
+            mouse: { x: 0, y: 0 }
+        };
+
+        // --- Resize Handling ---
+        function resize() {
+            // Keep canvas a reasonable size but responsive
+            const container = canvas.parentElement.parentElement;
+            width = Math.min(container.clientWidth - 32, 1000);
+            height = Math.min(container.clientHeight - 32, 700);
+
+            canvas.width = width;
+            canvas.height = height;
+
+            // Recenter magnet
+            state.magnet.x = width / 2;
+            state.magnet.y = height / 2;
+
+            // Reset compass if off screen
+            if (state.compass.x === 0 || state.compass.x > width || state.compass.y > height) {
+                state.compass.x = width / 2;
+                state.compass.y = height / 2 - 150;
+            }
+            draw();
+        }
+        window.addEventListener('resize', resize);
+
+        // --- Physics Engine ---
+        function getMagneticField(x, y) {
+            // Physical poles positions
+            const northPoleX = state.magnet.x - (magnetWidth / 2 * poleOffset);
+            const southPoleX = state.magnet.x + (magnetWidth / 2 * poleOffset);
+            const poleY = state.magnet.y;
+
+            // Distance vectors
+            const dxN = x - northPoleX;
+            const dyN = y - poleY;
+            const distN = Math.sqrt(dxN * dxN + dyN * dyN);
+
+            const dxS = x - southPoleX;
+            const dyS = y - poleY;
+            const distS = Math.sqrt(dxS * dxS + dyS * dyS);
+
+            // Avoid division by zero
+            const rN = Math.max(distN, 10);
+            const rS = Math.max(distS, 10);
+
+            // B field is superposition of two monopoles (Inverse Square Law)
+            // North is source (+), South is sink (-)
+            // Field strength arbitrary constant K
+
+            const Bx = (dxN / Math.pow(rN, 3)) - (dxS / Math.pow(rS, 3));
+            const By = (dyN / Math.pow(rN, 3)) - (dyS / Math.pow(rS, 3));
+
+            return { x: Bx, y: By, angle: Math.atan2(By, Bx) };
+        }
+
+        // --- Interaction Logic ---
+        function getCompassTip() {
+            return {
+                x: state.compass.x + Math.cos(state.compass.angle) * compassRadius,
+                y: state.compass.y + Math.sin(state.compass.angle) * compassRadius
+            };
+        }
+
+        function getCompassTail() {
+            return {
+                x: state.compass.x - Math.cos(state.compass.angle) * compassRadius,
+                y: state.compass.y - Math.sin(state.compass.angle) * compassRadius
+            };
+        }
+
+        function handleStart(e) {
+            const rect = canvas.getBoundingClientRect();
+            const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+            const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+            const x = clientX - rect.left;
+            const y = clientY - rect.top;
+
+            // Check hit on compass
+            const dx = x - state.compass.x;
+            const dy = y - state.compass.y;
+            if (dx * dx + dy * dy < (compassRadius + 15) * (compassRadius + 15)) {
+                state.compass.dragging = true;
+                canvas.style.cursor = 'grabbing';
+            }
+        }
+
+        function handleMove(e) {
+            const rect = canvas.getBoundingClientRect();
+            const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+            const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+            state.mouse.x = clientX - rect.left;
+            state.mouse.y = clientY - rect.top;
+
+            if (state.compass.dragging) {
+                let newX = state.mouse.x;
+                let newY = state.mouse.y;
+
+                // Wall bounds
+                newX = Math.max(compassRadius, Math.min(width - compassRadius, newX));
+                newY = Math.max(compassRadius, Math.min(height - compassRadius, newY));
+
+                // Magnet collision (simple box)
+                const buffer = compassRadius + 5;
+                if (newX > state.magnet.x - magnetWidth / 2 - buffer &&
+                    newX < state.magnet.x + magnetWidth / 2 + buffer &&
+                    newY > state.magnet.y - magnetHeight / 2 - buffer &&
+                    newY < state.magnet.y + magnetHeight / 2 + buffer) {
+                    // Simple repel/clamp logic could go here, but allowing overlap is sometimes needed for closer lines
+                    // We'll just let it float over for UI simplicity
+                }
+
+                // Snap Logic
+                state.isSnapping = false;
+
+                // 1. Snap to Start Points (if line is empty)
+                if (state.currentLine.length === 0) {
+                    const starts = getStartPoints();
+                    let closest = null;
+                    let minD = Infinity;
+
+                    starts.forEach(p => {
+                        const d = Math.hypot(newX - p.x, newY - p.y);
+                        if (d < snapDistance && d < minD) {
+                            minD = d;
+                            closest = p;
+                        }
+                    });
+
+                    if (closest) {
+                        newX = closest.x;
+                        newY = closest.y;
+                        state.isSnapping = true;
+                    }
+                }
+                // 2. Snap Tail to Previous Dot (if line has points)
+                else {
+                    const lastDot = state.currentLine[state.currentLine.length - 1];
+
+                    // We want the Compass TAIL to match the LAST DOT
+                    // Compass Center = Tail Pos + Vector(Angle) * Radius
+                    // But Angle depends on Center... iterative or simple approximation needed.
+
+                    // Approximation: Calculate field at mouse pos, determine angle.
+                    const field = getMagneticField(newX, newY);
+                    const tailOffsetX = -Math.cos(field.angle) * compassRadius;
+                    const tailOffsetY = -Math.sin(field.angle) * compassRadius;
+
+                    const tailPos = { x: newX + tailOffsetX, y: newY + tailOffsetY };
+
+                    const distToLast = Math.hypot(tailPos.x - lastDot.x, tailPos.y - lastDot.y);
+
+                    if (distToLast < snapDistance) {
+                        // Snap logic: Position center such that tail is exactly on lastDot
+                        // We need the field angle at the snapped position. 
+                        // It's a bit circular, but we can assume field doesn't change drastically in 20px.
+                        newX = lastDot.x - tailOffsetX;
+                        newY = lastDot.y - tailOffsetY;
+                        state.isSnapping = true;
+                    }
+                }
+
+                state.compass.x = newX;
+                state.compass.y = newY;
+            }
+        }
+
+        function handleEnd() {
+            state.compass.dragging = false;
+            canvas.style.cursor = 'default';
+        }
+
+        function getStartPoints() {
+            // Generate some suggested starting points near North Pole
+            const points = [];
+            const r = magnetHeight / 2 + 20;
+            const cx = state.magnet.x - magnetWidth / 2 + 10;
+            const cy = state.magnet.y;
+
+            // 3 points: Top, Middle-Left, Bottom
+            points.push({ x: cx + 10, y: cy - r - 10 }); // Top
+            points.push({ x: cx - 20, y: cy });      // Left
+            points.push({ x: cx + 10, y: cy + r + 10 }); // Bottom
+
+            // Add intermediate points for smoother density demo
+            points.push({ x: cx, y: cy - r * 0.6 });
+            points.push({ x: cx, y: cy + r * 0.6 });
+
+            return points;
+        }
+
+        // --- Drawing ---
+        function drawMagnet(ctx) {
+            ctx.save();
+            ctx.translate(state.magnet.x, state.magnet.y);
+
+            // Shadow
+            ctx.fillStyle = 'rgba(0,0,0,0.2)';
+            ctx.fillRect(-magnetWidth / 2 + 4, -magnetHeight / 2 + 4, magnetWidth, magnetHeight);
+
+            // Magnet Body
+            ctx.lineWidth = 2;
+            ctx.strokeStyle = '#333';
+
+            // South (Blue)
+            ctx.fillStyle = '#2563eb'; // Blue-600
+            ctx.fillRect(0, -magnetHeight / 2, magnetWidth / 2, magnetHeight);
+
+            // North (Red)
+            ctx.fillStyle = '#dc2626'; // Red-600
+            ctx.fillRect(-magnetWidth / 2, -magnetHeight / 2, magnetWidth / 2, magnetHeight);
+
+            // Outline
+            ctx.strokeRect(-magnetWidth / 2, -magnetHeight / 2, magnetWidth, magnetHeight);
+
+            // Labels
+            ctx.fillStyle = 'white';
+            ctx.font = 'bold 24px sans-serif';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText('N', -magnetWidth / 4, 0);
+            ctx.fillText('S', magnetWidth / 4, 0);
+
+            ctx.restore();
+        }
+
+        function drawCompass(ctx) {
+            const { x, y, angle } = state.compass;
+
+            ctx.save();
+            ctx.translate(x, y);
+
+            // Glow if snapping
+            if (state.isSnapping) {
+                ctx.beginPath();
+                ctx.arc(0, 0, compassRadius + 8, 0, Math.PI * 2);
+                ctx.fillStyle = 'rgba(74, 222, 128, 0.4)'; // Green glow
+                ctx.fill();
+            }
+
+            // Case
+            ctx.beginPath();
+            ctx.arc(0, 0, compassRadius, 0, Math.PI * 2);
+            ctx.fillStyle = '#f8fafc';
+            ctx.strokeStyle = '#475569';
+            ctx.lineWidth = 3;
+            ctx.fill();
+            ctx.stroke();
+
+            // Rotate for needle
+            ctx.rotate(angle);
+
+            // Needle
+            // North tip (Red)
+            ctx.beginPath();
+            ctx.moveTo(0, -6);
+            ctx.lineTo(compassRadius - 4, 0);
+            ctx.lineTo(0, 6);
+            ctx.fillStyle = '#ef4444';
+            ctx.fill();
+
+            // South tip (White/Silver)
+            ctx.beginPath();
+            ctx.moveTo(0, -6);
+            ctx.lineTo(-(compassRadius - 4), 0);
+            ctx.lineTo(0, 6);
+            ctx.fillStyle = '#cbd5e1';
+            ctx.fill();
+
+            // Center pin
+            ctx.beginPath();
+            ctx.arc(0, 0, 3, 0, Math.PI * 2);
+            ctx.fillStyle = '#1e293b';
+            ctx.fill();
+
+            // Tip Dot (Visual guide for where the dot will appear)
+            ctx.beginPath();
+            ctx.arc(compassRadius, 0, 2, 0, Math.PI * 2);
+            ctx.fillStyle = 'black';
+            ctx.fill();
+
+            ctx.restore();
+        }
+
+        function drawPointsAndLines(ctx) {
+            // Draw Completed Lines
+            state.completedLines.forEach(line => {
+                if (line.length < 2) return;
+
+                // Draw curve
+                ctx.beginPath();
+                ctx.moveTo(line[0].x, line[0].y);
+
+                // Catmull-Rom or simple quadratic curve through points
+                for (let i = 0; i < line.length - 1; i++) {
+                    const p0 = line[i];
+                    const p1 = line[i + 1];
+                    // midpoint control logic for smoother curves
+                    const mx = (p0.x + p1.x) / 2;
+                    const my = (p0.y + p1.y) / 2;
+                    ctx.quadraticCurveTo(p0.x, p0.y, mx, my);
+                    // To make it hit points exactly, just lineTo is safer for this lab
+                    // ctx.lineTo(p1.x, p1.y); 
+                }
+                // Finish last segment
+                const last = line[line.length - 1];
+                ctx.lineTo(last.x, last.y);
+
+                ctx.strokeStyle = 'rgba(59, 130, 246, 0.6)'; // Blue line
+                ctx.lineWidth = 3;
+                ctx.stroke();
+
+                // Draw arrow on the middle of the line
+                if (line.length > 2) {
+                    const midIndex = Math.floor(line.length / 2);
+                    const pA = line[midIndex];
+                    const pB = line[midIndex + 1] || line[midIndex - 1];
+                    const angle = Math.atan2(pB.y - pA.y, pB.x - pA.x);
+
+                    ctx.save();
+                    ctx.translate(pA.x, pA.y);
+                    ctx.rotate(angle);
+                    ctx.beginPath();
+                    ctx.moveTo(-6, -6);
+                    ctx.lineTo(6, 0);
+                    ctx.lineTo(-6, 6);
+                    ctx.fillStyle = 'rgba(59, 130, 246, 1)';
+                    ctx.fill();
+                    ctx.restore();
+                }
+
+                // Draw original points faint
+                line.forEach(p => {
+                    ctx.beginPath();
+                    ctx.arc(p.x, p.y, 2, 0, Math.PI * 2);
+                    ctx.fillStyle = '#94a3b8';
+                    ctx.fill();
+                });
+            });
+
+            // Draw Current Line Points
+            state.currentLine.forEach((p, index) => {
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, 4, 0, Math.PI * 2);
+                ctx.fillStyle = '#000';
+                ctx.fill();
+
+                // Number them
+                ctx.fillStyle = '#666';
+                ctx.font = '10px sans-serif';
+                ctx.fillText(index + 1, p.x + 8, p.y - 8);
+            });
+
+            // Draw Start Suggestions if line empty
+            if (state.currentLine.length === 0) {
+                const starts = getStartPoints();
+                const time = Date.now() / 500;
+                starts.forEach(p => {
+                    const alpha = 0.5 + Math.sin(time) * 0.3;
+                    ctx.beginPath();
+                    ctx.arc(p.x, p.y, 6, 0, Math.PI * 2);
+                    ctx.fillStyle = `rgba(34, 197, 94, ${alpha})`;
+                    ctx.fill();
+                    ctx.strokeStyle = 'rgba(22, 163, 74, 0.8)';
+                    ctx.lineWidth = 1;
+                    ctx.stroke();
+                });
+            }
+        }
+
+        function draw() {
+            ctx.clearRect(0, 0, width, height);
+
+            // Update Field Angle for Compass
+            const field = getMagneticField(state.compass.x, state.compass.y);
+            // Smooth rotation
+            let targetAngle = field.angle;
+            // Angle wrapping logic to prevent spinning 360 unnecessarily
+            let currentAngle = state.compass.angle;
+            while (targetAngle - currentAngle > Math.PI) targetAngle -= Math.PI * 2;
+            while (targetAngle - currentAngle < -Math.PI) targetAngle += Math.PI * 2;
+            // Ease
+            state.compass.angle += (targetAngle - currentAngle) * 0.2;
+
+            drawPointsAndLines(ctx);
+            drawMagnet(ctx);
+            drawCompass(ctx);
+
+            requestAnimationFrame(draw);
+        }
+
+        // --- Action Handlers ---
+
+        function markDot() {
+            const tip = getCompassTip();
+
+            // Check if user is too far or just starting
+            // If starting, ensure they are near North Pole (optional but good for guiding)
+            // For freedom, we allow starting anywhere, but the "Start Points" guide them.
+
+            state.currentLine.push(tip);
+
+            // Visual feedback
+            const flash = document.createElement('div');
+            flash.className = 'absolute w-4 h-4 bg-yellow-400 rounded-full animate-ping pointer-events-none';
+            flash.style.left = (tip.x + canvas.getBoundingClientRect().left) + 'px';
+            flash.style.top = (tip.y + canvas.getBoundingClientRect().top) + 'px';
+            document.body.appendChild(flash);
+            setTimeout(() => flash.remove(), 500);
+
+            // Enable finish button
+            finishBtn.disabled = state.currentLine.length < 2;
+        }
+
+        function finishLine() {
+            if (state.currentLine.length < 2) return;
+
+            // Add Start point? 
+            // In the lab, the first point is usually marked at the compass TIP after placing it.
+            // So the line starts at the first dot. 
+            // Often, we want to trace back to the magnet surface.
+            // Let's just store what the user drew.
+
+            state.completedLines.push([...state.currentLine]);
+            state.currentLine = [];
+            finishBtn.disabled = true;
+        }
+
+        function reset() {
+            state.completedLines = [];
+            state.currentLine = [];
+            finishBtn.disabled = true;
+        }
+
+        // --- Initialization ---
+
+        // Event Listeners
+        canvas.addEventListener('mousedown', handleStart);
+        canvas.addEventListener('touchstart', handleStart, { passive: false });
+
+        window.addEventListener('mousemove', handleMove);
+        window.addEventListener('touchmove', handleMove, { passive: false });
+
+        window.addEventListener('mouseup', handleEnd);
+        window.addEventListener('touchend', handleEnd);
+
+        markBtn.addEventListener('click', markDot);
+        finishBtn.addEventListener('click', finishLine);
+        resetBtn.addEventListener('click', reset);
+
+        // Keyboard shortcut
+        window.addEventListener('keydown', (e) => {
+            if (e.code === 'Space') markDot();
+        });
+
+        // Start
+        resize();
+
+    </script>
+</body>
+
+</html>

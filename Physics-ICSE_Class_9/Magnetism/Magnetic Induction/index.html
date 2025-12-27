@@ -1,0 +1,524 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>⚛️</text></svg>">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Magnetic Induction Experiment</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: #0f172a;
+            font-family: 'Segoe UI', sans-serif;
+        }
+
+        canvas {
+            display: block;
+            touch-action: none;
+        }
+
+        /* Loading Screen */
+        #loading-screen {
+            position: fixed;
+            inset: 0;
+            background-color: #020617;
+            color: #38bdf8;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            flex-direction: column;
+            z-index: 50;
+            transition: opacity 1s ease-out;
+        }
+
+        .loader-text {
+            font-size: 2.5rem;
+            font-weight: bold;
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+            background: linear-gradient(to right, #38bdf8, #818cf8);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            animation: pulse 1.5s infinite;
+        }
+
+        @keyframes pulse {
+
+            0%,
+            100% {
+                opacity: 0.8;
+                transform: scale(0.98);
+            }
+
+            50% {
+                opacity: 1;
+                transform: scale(1.02);
+            }
+        }
+    </style>
+</head>
+
+<body class="h-screen w-screen relative">
+
+    <!-- Loading Screen -->
+    <div id="loading-screen">
+        <div class="loader-text">Made by Priyansh</div>
+        <div class="mt-4 text-slate-400 text-sm font-mono">Physics Engine Start ho raha hai...</div>
+    </div>
+
+    <!-- Canvas -->
+    <canvas id="simCanvas" class="absolute inset-0 z-0 bg-slate-900"></canvas>
+
+    <!-- UI Overlay -->
+    <div class="absolute inset-0 pointer-events-none z-10 flex flex-col justify-between p-6">
+        <div>
+            <h1 class="text-3xl font-bold text-sky-400 drop-shadow-md">Magnetic Induction</h1>
+            <div
+                class="text-slate-300 text-sm max-w-md mt-2 font-medium bg-slate-800/80 p-4 rounded-xl border border-slate-700 backdrop-blur-md shadow-lg">
+                <ul class="list-disc pl-4 space-y-1">
+                    <li>Nails ko drag karke Magnet ke <span class="text-red-400 font-bold">North Pole</span> par layein.
+                    </li>
+                    <li>Ek nail ke neeche doosra nail lagakar <span class="text-yellow-400">chain banayein</span>.</li>
+                    <li>Dekhein kaise nails temporary magnet ban jate hain.</li>
+                </ul>
+            </div>
+        </div>
+
+        <div class="flex justify-center pb-10">
+            <button id="resetBtn"
+                class="pointer-events-auto bg-gradient-to-r from-red-600 to-red-500 hover:from-red-500 hover:to-red-400 text-white font-bold py-4 px-10 rounded-full shadow-2xl transform transition active:scale-95 flex items-center gap-3 border border-red-400/30 group">
+                <span class="text-xl group-hover:rotate-12 transition-transform">ðŸ§²</span>
+                <span>Magnet Hatayein (Climax)</span>
+            </button>
+        </div>
+    </div>
+
+    <script>
+        // --- Loading Logic ---
+        window.addEventListener('load', () => {
+            setTimeout(() => {
+                const loader = document.getElementById('loading-screen');
+                loader.style.opacity = '0';
+                setTimeout(() => loader.remove(), 1000);
+            }, 2500); // 2.5 seconds delay
+        });
+
+        // --- Setup ---
+        const canvas = document.getElementById('simCanvas');
+        const ctx = canvas.getContext('2d');
+        let width, height;
+
+        function resize() {
+            width = canvas.width = window.innerWidth;
+            height = canvas.height = window.innerHeight;
+        }
+        window.addEventListener('resize', resize);
+        resize();
+
+        // --- Physics Constants ---
+        const GRAVITY = 0.4; // Reduced from 0.6 for smoother/slower fall
+        const FRICTION = 0.8;
+        const AIR_RESISTANCE = 0.99;
+        const MAGNET_WIDTH = 90;
+        const MAGNET_HEIGHT = 180;
+        const NAIL_WIDTH = 12;
+        const NAIL_HEIGHT = 60;
+        const SNAP_DISTANCE = 40;
+        const ATTACH_GAP = 2; // Small visual gap between connected nails
+
+        // --- Visual Effects State ---
+        let particles = [];
+
+        // --- State ---
+        let magnet = {
+            x: width / 2,
+            y: 120,
+            w: MAGNET_WIDTH,
+            h: MAGNET_HEIGHT,
+            isDragging: false,
+            visible: true
+        };
+
+        let nails = [];
+        const NAIL_COUNT = 10;
+
+        function initNails() {
+            nails = [];
+            for (let i = 0; i < NAIL_COUNT; i++) {
+                spawnNail(i);
+            }
+        }
+
+        function spawnNail(id) {
+            nails.push({
+                id: id,
+                x: (width / 2) + (Math.random() - 0.5) * 300,
+                y: height - 50 - (Math.random() * 50),
+                vx: 0,
+                vy: 0,
+                rotation: (Math.random() - 0.5) * 0.5,
+                isDragging: false,
+                parent: null,
+                polarity: null
+            });
+        }
+
+        initNails();
+
+        // --- Input Handling ---
+        let dragOffset = { x: 0, y: 0 };
+        let draggedObj = null;
+
+        function getMousePos(e) {
+            const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+            const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+            return { x: clientX, y: clientY };
+        }
+
+        function handleStart(e) {
+            const pos = getMousePos(e);
+
+            // Check Nails
+            for (let i = nails.length - 1; i >= 0; i--) {
+                const n = nails[i];
+                if (pos.x > n.x - NAIL_WIDTH * 2 && pos.x < n.x + NAIL_WIDTH * 2 &&
+                    pos.y > n.y && pos.y < n.y + NAIL_HEIGHT) {
+
+                    draggedObj = n;
+                    n.isDragging = true;
+                    n.parent = null;
+                    n.vx = 0; n.vy = 0;
+                    dragOffset.x = pos.x - n.x;
+                    dragOffset.y = pos.y - n.y;
+                    return;
+                }
+            }
+
+            // Check Magnet
+            if (magnet.visible && pos.x > magnet.x - magnet.w / 2 && pos.x < magnet.x + magnet.w / 2 &&
+                pos.y > magnet.y - magnet.h / 2 && pos.y < magnet.y + magnet.h / 2) {
+
+                draggedObj = magnet;
+                magnet.isDragging = true;
+                dragOffset.x = pos.x - magnet.x;
+                dragOffset.y = pos.y - magnet.y;
+            }
+        }
+
+        function handleMove(e) {
+            if (!draggedObj) return;
+            const pos = getMousePos(e);
+            e.preventDefault();
+
+            draggedObj.x = pos.x - dragOffset.x;
+            draggedObj.y = pos.y - dragOffset.y;
+            draggedObj.vx = 0;
+            draggedObj.vy = 0;
+        }
+
+        function handleEnd() {
+            if (draggedObj) {
+                draggedObj.isDragging = false;
+                draggedObj = null;
+            }
+        }
+
+        canvas.addEventListener('mousedown', handleStart);
+        canvas.addEventListener('mousemove', handleMove);
+        window.addEventListener('mouseup', handleEnd);
+
+        canvas.addEventListener('touchstart', handleStart);
+        canvas.addEventListener('touchmove', handleMove);
+        window.addEventListener('touchend', handleEnd);
+
+        // --- Climax Logic ---
+        document.getElementById('resetBtn').addEventListener('click', () => {
+            const btn = document.getElementById('resetBtn');
+            magnet.visible = false;
+
+            // Break chains & SCATTER nails
+            nails.forEach(n => {
+                n.parent = null;
+                // Add random velocity to prevent stacking
+                n.vx = (Math.random() - 0.5) * 10;
+                n.vy = -3 + (Math.random() * 3);
+            });
+
+            btn.innerText = "Experiment Reset ho raha hai...";
+            btn.classList.add('opacity-50', 'cursor-not-allowed');
+            btn.disabled = true;
+
+            setTimeout(() => {
+                magnet.visible = true;
+                magnet.x = width / 2;
+                magnet.y = 120;
+
+                btn.innerText = "ðŸ§² Magnet Hatayein (Climax)";
+                btn.classList.remove('opacity-50', 'cursor-not-allowed');
+                btn.disabled = false;
+            }, 2000);
+        });
+
+        // --- Visual Effects Functions ---
+        function createSparkle(x, y) {
+            for (let i = 0; i < 8; i++) {
+                particles.push({
+                    x: x,
+                    y: y,
+                    vx: (Math.random() - 0.5) * 4,
+                    vy: (Math.random() - 0.5) * 4,
+                    life: 1.0,
+                    color: `hsl(${Math.random() * 60 + 40}, 100%, 50%)` // Gold/Yellow
+                });
+            }
+        }
+
+        function drawFieldLines() {
+            if (!magnet.visible) return;
+            ctx.save();
+            ctx.translate(magnet.x, magnet.y);
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.05)';
+            ctx.lineWidth = 2;
+
+            for (let i = 1; i <= 4; i++) {
+                let w = magnet.w / 2 + i * 40;
+                let h = magnet.h / 2 + i * 20;
+
+                ctx.beginPath();
+                ctx.moveTo(0, magnet.h / 2); // N pole tip
+                ctx.bezierCurveTo(w, magnet.h / 2, w, -magnet.h / 2, 0, -magnet.h / 2);
+                ctx.stroke();
+
+                ctx.beginPath();
+                ctx.moveTo(0, magnet.h / 2);
+                ctx.bezierCurveTo(-w, magnet.h / 2, -w, -magnet.h / 2, 0, -magnet.h / 2);
+                ctx.stroke();
+            }
+            ctx.restore();
+        }
+
+        function drawParticles() {
+            for (let i = particles.length - 1; i >= 0; i--) {
+                let p = particles[i];
+                p.x += p.vx;
+                p.y += p.vy;
+                p.life -= 0.05;
+
+                if (p.life <= 0) {
+                    particles.splice(i, 1);
+                } else {
+                    ctx.globalAlpha = p.life;
+                    ctx.fillStyle = p.color;
+                    ctx.beginPath();
+                    ctx.arc(p.x, p.y, 2, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.globalAlpha = 1.0;
+                }
+            }
+        }
+
+        // --- Core Loop ---
+        function update() {
+            nails.forEach(nail => {
+                nail.polarity = null;
+
+                if (nail.isDragging) return;
+
+                // Parent Logic
+                if (nail.parent) {
+                    let parentObj = nail.parent.type === 'magnet' ? magnet : nail.parent.obj;
+
+                    function isRooted(obj) {
+                        if (obj.type === 'magnet') return magnet.visible;
+                        if (!obj.obj.parent) return false;
+                        return isRooted(obj.obj.parent);
+                    }
+
+                    if (!isRooted(nail.parent)) {
+                        nail.parent = null;
+                    } else {
+                        // Snap Logic (Corrected for Overlap)
+                        let parentX = nail.parent.type === 'magnet' ? magnet.x : parentObj.x;
+                        // Add Gap: Parent Bottom + ATTACH_GAP
+                        let parentBottom = nail.parent.type === 'magnet' ? (magnet.y + magnet.h / 2) : (parentObj.y + NAIL_HEIGHT);
+                        let targetY = parentBottom + ATTACH_GAP;
+
+                        // Slower, smoother approach (0.15 instead of 0.3)
+                        nail.x += (parentX - nail.x) * 0.15;
+                        nail.y += (targetY - nail.y) * 0.15;
+                        nail.vx = 0;
+                        nail.vy = 0;
+                        nail.rotation = 0;
+
+                        nail.polarity = 'N';
+                    }
+                }
+
+                // Free Fall
+                if (!nail.parent && !nail.isDragging) {
+                    nail.vy += GRAVITY;
+                    nail.vx *= AIR_RESISTANCE;
+                    nail.vy *= AIR_RESISTANCE;
+
+                    nail.x += nail.vx;
+                    nail.y += nail.vy;
+
+                    // Floor Collision
+                    if (nail.y + NAIL_HEIGHT > height) {
+                        nail.y = height - NAIL_HEIGHT;
+                        nail.vy *= -0.5;
+                        nail.vx *= FRICTION;
+                        nail.rotation *= 0.9;
+                    }
+
+                    if (nail.x < 0) { nail.x = 0; nail.vx *= -0.5; }
+                    if (nail.x > width) { nail.x = width; nail.vx *= -0.5; }
+
+                    if (nail.y > height + 100 || isNaN(nail.y)) {
+                        nail.y = height - 100;
+                        nail.x = width / 2;
+                        nail.vy = 0;
+                    }
+
+                    // Check for attachment
+                    if (magnet.visible && Math.abs(nail.vy) < 15) {
+                        // Magnet
+                        let distToMagnet = Math.hypot(nail.x - magnet.x, nail.y - (magnet.y + magnet.h / 2));
+                        if (distToMagnet < SNAP_DISTANCE) {
+                            nail.parent = { type: 'magnet', obj: magnet };
+                            createSparkle(nail.x, nail.y);
+                        }
+
+                        // Chain
+                        nails.forEach(other => {
+                            if (nail === other) return;
+                            if (other.parent) {
+                                // Ensure we check distance to the BOTTOM of the other nail
+                                let distToNail = Math.hypot(nail.x - other.x, nail.y - (other.y + NAIL_HEIGHT));
+                                if (distToNail < SNAP_DISTANCE) {
+                                    nail.parent = { type: 'nail', obj: other };
+                                    createSparkle(nail.x, nail.y);
+                                }
+                            }
+                        });
+                    }
+                }
+            });
+        }
+
+        // --- Rendering ---
+        function draw() {
+            let bgGrad = ctx.createLinearGradient(0, 0, 0, height);
+            bgGrad.addColorStop(0, '#0f172a');
+            bgGrad.addColorStop(1, '#1e293b');
+            ctx.fillStyle = bgGrad;
+            ctx.fillRect(0, 0, width, height);
+
+            ctx.fillStyle = '#334155';
+            ctx.fillRect(0, height - 10, width, 10);
+
+            drawFieldLines();
+
+            // 1. Draw Magnet
+            if (magnet.visible) {
+                const mx = magnet.x - magnet.w / 2;
+                const my = magnet.y - magnet.h / 2;
+
+                ctx.shadowColor = 'black';
+                ctx.shadowBlur = 20;
+                ctx.fillStyle = 'rgba(0,0,0,0.5)';
+                ctx.fillRect(mx + 5, my + 5, magnet.w, magnet.h);
+                ctx.shadowBlur = 0;
+
+                let gradS = ctx.createLinearGradient(mx, my, mx + magnet.w, my);
+                gradS.addColorStop(0, '#2563eb'); gradS.addColorStop(0.5, '#60a5fa'); gradS.addColorStop(1, '#2563eb');
+
+                let gradN = ctx.createLinearGradient(mx, my, mx + magnet.w, my);
+                gradN.addColorStop(0, '#dc2626'); gradN.addColorStop(0.5, '#f87171'); gradN.addColorStop(1, '#dc2626');
+
+                ctx.fillStyle = gradS;
+                ctx.fillRect(mx, my, magnet.w, magnet.h / 2);
+
+                ctx.fillStyle = gradN;
+                ctx.fillRect(mx, my + magnet.h / 2, magnet.w, magnet.h / 2);
+
+                ctx.fillStyle = '#e2e8f0';
+                ctx.fillRect(mx, my + magnet.h / 2 - 2, magnet.w, 4);
+
+                ctx.fillStyle = 'white';
+                ctx.font = 'bold 24px sans-serif';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText("S", magnet.x, my + magnet.h / 4);
+                ctx.fillText("N", magnet.x, my + magnet.h * 0.75);
+
+                ctx.fillStyle = 'rgba(255,255,255,0.1)';
+                ctx.fillRect(mx + 5, my, 10, magnet.h);
+            }
+
+            // 2. Draw Nails
+            nails.forEach(nail => {
+                ctx.save();
+                ctx.translate(nail.x, nail.y);
+                if (nail.rotation) ctx.rotate(nail.rotation);
+
+                if (nail.polarity) {
+                    let grad = ctx.createLinearGradient(0, 0, 0, NAIL_HEIGHT);
+                    grad.addColorStop(0, '#3b82f6');
+                    grad.addColorStop(0.5, '#cbd5e1');
+                    grad.addColorStop(1, '#ef4444');
+                    ctx.fillStyle = grad;
+
+                    ctx.shadowColor = '#facc15';
+                    ctx.shadowBlur = 15;
+                } else {
+                    let grad = ctx.createLinearGradient(-5, 0, 5, 0);
+                    grad.addColorStop(0, '#475569');
+                    grad.addColorStop(0.5, '#94a3b8');
+                    grad.addColorStop(1, '#475569');
+                    ctx.fillStyle = grad;
+                    ctx.shadowBlur = 0;
+                }
+
+                ctx.beginPath();
+                ctx.roundRect(-NAIL_WIDTH / 2, 0, NAIL_WIDTH, 5, 2);
+                ctx.rect(-NAIL_WIDTH / 4, 5, NAIL_WIDTH / 2, NAIL_HEIGHT - 5);
+                ctx.fill();
+
+                ctx.beginPath();
+                ctx.moveTo(-NAIL_WIDTH / 4, NAIL_HEIGHT);
+                ctx.lineTo(NAIL_WIDTH / 4, NAIL_HEIGHT);
+                ctx.lineTo(0, NAIL_HEIGHT + 5);
+                ctx.fill();
+
+                if (nail.polarity) {
+                    ctx.shadowBlur = 0;
+                    ctx.fillStyle = 'white';
+                    ctx.font = 'bold 9px sans-serif';
+                    ctx.textAlign = 'center';
+                    ctx.fillText("S", 0, 10);
+                    ctx.fillText("N", 0, NAIL_HEIGHT - 5);
+                }
+
+                ctx.restore();
+            });
+
+            drawParticles();
+
+            requestAnimationFrame(draw);
+        }
+
+        function loop() {
+            update();
+            draw();
+            requestAnimationFrame(loop);
+        }
+        loop();
+
+    </script>
+</body>
+
+</html>

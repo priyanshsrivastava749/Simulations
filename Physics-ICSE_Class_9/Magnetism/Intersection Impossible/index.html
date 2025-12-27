@@ -1,0 +1,522 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>⚛️</text></svg>">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Impossible Intersection Proof</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f8fafc;
+            touch-action: none;
+            overflow: hidden;
+        }
+
+        canvas {
+            background-image:
+                linear-gradient(rgba(226, 232, 240, 0.5) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(226, 232, 240, 0.5) 1px, transparent 1px);
+            background-size: 20px 20px;
+        }
+
+        .instruction-box {
+            animation: fadeIn 1s ease-out;
+        }
+
+        @keyframes shake {
+            0% {
+                transform: translate(1px, 1px) rotate(0deg);
+            }
+
+            10% {
+                transform: translate(-1px, -2px) rotate(-1deg);
+            }
+
+            20% {
+                transform: translate(-3px, 0px) rotate(1deg);
+            }
+
+            30% {
+                transform: translate(3px, 2px) rotate(0deg);
+            }
+
+            40% {
+                transform: translate(1px, -1px) rotate(1deg);
+            }
+
+            50% {
+                transform: translate(-1px, 2px) rotate(-1deg);
+            }
+
+            60% {
+                transform: translate(-3px, 1px) rotate(0deg);
+            }
+
+            70% {
+                transform: translate(3px, 1px) rotate(-1deg);
+            }
+
+            80% {
+                transform: translate(-1px, -1px) rotate(1deg);
+            }
+
+            90% {
+                transform: translate(1px, 2px) rotate(0deg);
+            }
+
+            100% {
+                transform: translate(1px, -2px) rotate(-1deg);
+            }
+        }
+
+        .glitch-active {
+            animation: shake 0.5s;
+            animation-iteration-count: infinite;
+        }
+
+        .error-text {
+            text-shadow: 2px 2px 0px #ef4444;
+        }
+    </style>
+</head>
+
+<body class="h-screen w-screen flex flex-col items-center justify-center bg-slate-50">
+
+    <!-- Header / Context -->
+    <div class="absolute top-4 left-0 w-full text-center pointer-events-none z-10 px-4">
+        <h1 class="text-2xl md:text-3xl font-bold text-slate-800 mb-2">Why Field Lines Cannot Intersect</h1>
+        <p class="text-slate-600 bg-white/80 inline-block px-4 py-1 rounded-full shadow-sm">
+            Drag the compass to the intersection point <strong class="text-blue-600">P</strong>
+        </p>
+    </div>
+
+    <!-- Main Canvas -->
+    <div class="relative shadow-2xl rounded-xl overflow-hidden border-4 border-slate-200 bg-white">
+        <canvas id="simCanvas"></canvas>
+
+        <!-- Impossible Overlay (Hidden by default) -->
+        <div id="impossibleOverlay"
+            class="absolute inset-0 bg-red-900/10 backdrop-blur-[2px] flex items-center justify-center hidden opacity-0 transition-opacity duration-300">
+            <div
+                class="bg-white p-8 rounded-2xl shadow-2xl max-w-md text-center border-4 border-red-500 transform scale-110">
+                <div class="text-6xl mb-4">âŒ</div>
+                <h2 class="text-3xl font-bold text-red-600 mb-2 error-text">IMPOSSIBLE!</h2>
+                <p class="text-slate-700 text-lg mb-6">
+                    A compass needle represents the direction of the net magnetic field.
+                </p>
+                <div class="bg-red-50 p-4 rounded-lg text-red-800 font-medium border border-red-100 mb-6">
+                    "At point P, the needle is trying to point in two different directions at once."
+                </div>
+                <button id="resetBtn"
+                    class="bg-slate-800 hover:bg-slate-700 text-white px-6 py-3 rounded-lg font-bold transition-transform active:scale-95 shadow-lg">
+                    Reset Experiment
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('simCanvas');
+        const ctx = canvas.getContext('2d');
+        const overlay = document.getElementById('impossibleOverlay');
+        const resetBtn = document.getElementById('resetBtn');
+
+        // Dimensions
+        let width, height;
+
+        // Configuration
+        const compassRadius = 30;
+        const intersectionThreshold = 40; // Pixel distance to trigger conflict
+
+        // State
+        const state = {
+            compass: { x: 100, y: 100, angle: 0, dragging: false },
+            intersection: { x: 0, y: 0 },
+            isConflict: false,
+            mouse: { x: 0, y: 0 },
+            shakeOffset: { x: 0, y: 0 },
+            t: 0 // animation time
+        };
+
+        // Define two curves (Quadratic Bezier)
+        // Curve 1: Top-Left to Bottom-Right
+        const curve1 = {
+            start: { x: 0.2, y: 0.2 },
+            cp: { x: 0.5, y: 0.2 },
+            end: { x: 0.8, y: 0.8 },
+            color: '#3b82f6', // Blue
+            label: 'Field Line A'
+        };
+
+        // Curve 2: Bottom-Left to Top-Right
+        const curve2 = {
+            start: { x: 0.2, y: 0.8 },
+            cp: { x: 0.5, y: 0.8 },
+            end: { x: 0.8, y: 0.2 },
+            color: '#8b5cf6', // Violet
+            label: 'Field Line B'
+        };
+
+        function resize() {
+            const container = canvas.parentElement;
+            // Max size but keep padding
+            const maxWidth = Math.min(window.innerWidth - 32, 800);
+            const maxHeight = Math.min(window.innerHeight - 150, 600);
+
+            width = maxWidth;
+            height = maxHeight;
+
+            canvas.width = width;
+            canvas.height = height;
+            canvas.style.width = width + 'px';
+            canvas.style.height = height + 'px';
+
+            // Calculate exact intersection (Simplified for visual placement)
+            // We know roughly where they cross based on symmetry
+            state.intersection = {
+                x: width * 0.5,
+                y: height * 0.5
+            };
+
+            // Reset compass start pos
+            if (!state.compass.dragging) {
+                state.compass.x = width * 0.15;
+                state.compass.y = height * 0.5;
+            }
+        }
+        window.addEventListener('resize', resize);
+
+        // --- Physics & Math ---
+
+        // Get point on Quadratic Bezier at t (0..1)
+        function getBezierPoint(t, p0, p1, p2) {
+            const oneMinusT = 1 - t;
+            return {
+                x: oneMinusT * oneMinusT * p0.x + 2 * oneMinusT * t * p1.x + t * t * p2.x,
+                y: oneMinusT * oneMinusT * p0.y + 2 * oneMinusT * t * p1.y + t * t * p2.y
+            };
+        }
+
+        // Get Tangent Angle at t
+        function getBezierTangent(t, p0, p1, p2) {
+            const dx = 2 * (1 - t) * (p1.x - p0.x) + 2 * t * (p2.x - p1.x);
+            const dy = 2 * (1 - t) * (p1.y - p0.y) + 2 * t * (p2.y - p1.y);
+            return Math.atan2(dy, dx);
+        }
+
+        // Helper to map 0..1 coordinates to screen pixels
+        function toScreen(pt) {
+            return { x: pt.x * width, y: pt.y * height };
+        }
+
+        // --- Interaction Handlers ---
+
+        function handleStart(e) {
+            if (state.isConflict) return; // Lock if in error state
+
+            const rect = canvas.getBoundingClientRect();
+            const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+            const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+            const x = clientX - rect.left;
+            const y = clientY - rect.top;
+
+            const dx = x - state.compass.x;
+            const dy = y - state.compass.y;
+            if (dx * dx + dy * dy < (compassRadius + 20) ** 2) {
+                state.compass.dragging = true;
+            }
+        }
+
+        function handleMove(e) {
+            if (!state.compass.dragging) return;
+
+            const rect = canvas.getBoundingClientRect();
+            const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+            const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+
+            let x = clientX - rect.left;
+            let y = clientY - rect.top;
+
+            // Bounds
+            x = Math.max(compassRadius, Math.min(width - compassRadius, x));
+            y = Math.max(compassRadius, Math.min(height - compassRadius, y));
+
+            state.compass.x = x;
+            state.compass.y = y;
+
+            checkIntersection();
+        }
+
+        function handleEnd() {
+            state.compass.dragging = false;
+        }
+
+        function checkIntersection() {
+            const dx = state.compass.x - state.intersection.x;
+            const dy = state.compass.y - state.intersection.y;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+
+            if (dist < intersectionThreshold) {
+                triggerConflict();
+            }
+        }
+
+        function triggerConflict() {
+            if (state.isConflict) return;
+            state.isConflict = true;
+            state.compass.dragging = false;
+
+            // Snap to center for dramatic effect
+            state.compass.x = state.intersection.x;
+            state.compass.y = state.intersection.y;
+
+            // Show UI
+            setTimeout(() => {
+                overlay.classList.remove('hidden');
+                // Force reflow
+                void overlay.offsetWidth;
+                overlay.classList.remove('opacity-0');
+            }, 1500); // Wait 1.5s while it glitches
+        }
+
+        resetBtn.addEventListener('click', () => {
+            overlay.classList.add('opacity-0');
+            setTimeout(() => {
+                overlay.classList.add('hidden');
+                state.isConflict = false;
+                state.compass.x = width * 0.15;
+                state.compass.y = height * 0.5;
+                state.compass.angle = 0;
+            }, 300);
+        });
+
+
+        // --- Drawing ---
+
+        function drawCurve(def) {
+            const p0 = toScreen(def.start);
+            const p1 = toScreen(def.cp);
+            const p2 = toScreen(def.end);
+
+            ctx.beginPath();
+            ctx.moveTo(p0.x, p0.y);
+            ctx.quadraticCurveTo(p1.x, p1.y, p2.x, p2.y);
+            ctx.strokeStyle = def.color;
+            ctx.lineWidth = 4;
+            ctx.stroke();
+
+            // Arrow head at 50%
+            const mid = getBezierPoint(0.5, p0, p1, p2);
+            const angle = getBezierTangent(0.5, p0, p1, p2);
+
+            ctx.save();
+            ctx.translate(mid.x, mid.y);
+            ctx.rotate(angle);
+            ctx.beginPath();
+            ctx.moveTo(-10, -10);
+            ctx.lineTo(10, 0);
+            ctx.lineTo(-10, 10);
+            ctx.fillStyle = def.color;
+            ctx.fill();
+            ctx.restore();
+
+            // Label
+            ctx.fillStyle = def.color;
+            ctx.font = 'bold 16px sans-serif';
+            ctx.fillText(def.label, p0.x + 10, p0.y + (p0.y < height / 2 ? -10 : 20));
+        }
+
+        function getTargetAngle() {
+            // If in conflict, we don't return a single angle here, handled in loop
+            if (state.isConflict) return 0;
+
+            // Find closest point on curves to determine angle
+            // Simple approach: Check distance to center. 
+            // If near center, blend. If far, pick closest curve.
+
+            // Current simple logic for demo:
+            // Calculate distance to Curve 1 midpoint vs Curve 2 midpoint is naive but works for X shape
+            // Better: use relative position to center to decide "Quadrant"
+
+            const p0_1 = toScreen(curve1.start);
+            const p1_1 = toScreen(curve1.cp);
+            const p2_1 = toScreen(curve1.end);
+
+            const p0_2 = toScreen(curve2.start);
+            const p1_2 = toScreen(curve2.cp);
+            const p2_2 = toScreen(curve2.end);
+
+            // Crude projection to find t roughly
+            // Just use distance to midpoints for the "influence"
+            const mid1 = getBezierPoint(0.5, p0_1, p1_1, p2_1);
+            const mid2 = getBezierPoint(0.5, p0_2, p1_2, p2_2);
+
+            const dist1 = Math.hypot(state.compass.x - mid1.x, state.compass.y - mid1.y);
+            const dist2 = Math.hypot(state.compass.x - mid2.x, state.compass.y - mid2.y);
+
+            // If we are far from the intersection, snap to closest curve's general flow
+            // Since curves are diagonal, we can approximate tangent based on curve
+
+            if (dist1 < dist2) {
+                // Closer to Curve 1 (Blue)
+                // Approximate t based on x
+                let t = (state.compass.x - p0_1.x) / (p2_1.x - p0_1.x);
+                t = Math.max(0, Math.min(1, t));
+                return getBezierTangent(t, p0_1, p1_1, p2_1);
+            } else {
+                // Closer to Curve 2 (Violet)
+                let t = (state.compass.x - p0_2.x) / (p2_2.x - p0_2.x);
+                t = Math.max(0, Math.min(1, t));
+                return getBezierTangent(t, p0_2, p1_2, p2_2);
+            }
+        }
+
+        function drawCompass() {
+            ctx.save();
+
+            let x = state.compass.x;
+            let y = state.compass.y;
+            let angle = state.compass.angle;
+
+            // GLITCH LOGIC
+            if (state.isConflict) {
+                // Calculate both tangents at intersection (t=0.5 approx)
+                const p0_1 = toScreen(curve1.start); const p1_1 = toScreen(curve1.cp); const p2_1 = toScreen(curve1.end);
+                const p0_2 = toScreen(curve2.start); const p1_2 = toScreen(curve2.cp); const p2_2 = toScreen(curve2.end);
+
+                const angle1 = getBezierTangent(0.5, p0_1, p1_1, p2_1);
+                const angle2 = getBezierTangent(0.5, p0_2, p1_2, p2_2);
+
+                // Rapid switching
+                const frame = Math.floor(Date.now() / 50); // Change every 50ms
+                if (frame % 2 === 0) {
+                    angle = angle1;
+                    ctx.shadowColor = curve1.color;
+                } else {
+                    angle = angle2;
+                    ctx.shadowColor = curve2.color;
+                }
+
+                // Shake position
+                const shakeAmt = 5;
+                x += (Math.random() - 0.5) * shakeAmt;
+                y += (Math.random() - 0.5) * shakeAmt;
+
+                ctx.shadowBlur = 20;
+            } else {
+                // Smooth rotate to target
+                const target = getTargetAngle();
+                // smooth transition logic
+                let diff = target - angle;
+                while (diff > Math.PI) diff -= Math.PI * 2;
+                while (diff < -Math.PI) diff += Math.PI * 2;
+                state.compass.angle += diff * 0.2;
+                angle = state.compass.angle;
+
+                ctx.shadowBlur = 5;
+                ctx.shadowColor = 'rgba(0,0,0,0.2)';
+            }
+
+            ctx.translate(x, y);
+            ctx.rotate(angle);
+
+            // Draw Compass Body
+            ctx.beginPath();
+            ctx.arc(0, 0, compassRadius, 0, Math.PI * 2);
+            ctx.fillStyle = '#f8fafc';
+            ctx.fill();
+            ctx.lineWidth = 2;
+            ctx.strokeStyle = '#475569';
+            ctx.stroke();
+
+            // Needle
+            ctx.beginPath();
+            ctx.moveTo(0, -6);
+            ctx.lineTo(compassRadius - 5, 0);
+            ctx.lineTo(0, 6);
+            ctx.fillStyle = '#ef4444'; // Red North
+            ctx.fill();
+
+            ctx.beginPath();
+            ctx.moveTo(0, -6);
+            ctx.lineTo(-(compassRadius - 5), 0);
+            ctx.lineTo(0, 6);
+            ctx.fillStyle = '#94a3b8'; // Grey South
+            ctx.fill();
+
+            // Pin
+            ctx.beginPath();
+            ctx.arc(0, 0, 4, 0, Math.PI * 2);
+            ctx.fillStyle = '#1e293b';
+            ctx.fill();
+
+            // Special FX for Glitch
+            if (state.isConflict) {
+                ctx.rotate(-angle); // Reset rotation for sparks
+
+                // Draw sparks/lightning
+                ctx.beginPath();
+                for (let i = 0; i < 3; i++) {
+                    const sx = (Math.random() - 0.5) * 60;
+                    const sy = (Math.random() - 0.5) * 60;
+                    ctx.moveTo(0, 0);
+                    ctx.lineTo(sx, sy);
+                }
+                ctx.strokeStyle = '#fbbf24'; // Amber
+                ctx.lineWidth = 2;
+                ctx.stroke();
+            }
+
+            ctx.restore();
+        }
+
+        function drawIntersectionPoint() {
+            ctx.beginPath();
+            ctx.arc(state.intersection.x, state.intersection.y, 8, 0, Math.PI * 2);
+            ctx.fillStyle = 'rgba(0,0,0,0.1)';
+            ctx.fill();
+
+            // Pulsing ring
+            const pulse = (Math.sin(Date.now() / 200) + 1) * 0.5;
+            ctx.beginPath();
+            ctx.arc(state.intersection.x, state.intersection.y, 8 + pulse * 10, 0, Math.PI * 2);
+            ctx.strokeStyle = `rgba(239, 68, 68, ${0.5 - pulse * 0.5})`; // Red fade
+            ctx.lineWidth = 2;
+            ctx.stroke();
+
+            // Label P
+            ctx.fillStyle = '#333';
+            ctx.font = 'bold 14px sans-serif';
+            ctx.fillText('P', state.intersection.x - 4, state.intersection.y - 15);
+        }
+
+        function loop() {
+            ctx.clearRect(0, 0, width, height);
+
+            drawCurve(curve1);
+            drawCurve(curve2);
+            drawIntersectionPoint();
+            drawCompass();
+
+            requestAnimationFrame(loop);
+        }
+
+        // Init
+        resize();
+
+        canvas.addEventListener('mousedown', handleStart);
+        canvas.addEventListener('touchstart', handleStart, { passive: false });
+        window.addEventListener('mousemove', handleMove);
+        window.addEventListener('touchmove', handleMove, { passive: false });
+        window.addEventListener('mouseup', handleEnd);
+        window.addEventListener('touchend', handleEnd);
+
+        loop();
+
+    </script>
+</body>
+
+</html>

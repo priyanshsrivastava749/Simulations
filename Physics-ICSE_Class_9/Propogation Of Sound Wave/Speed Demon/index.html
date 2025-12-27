@@ -1,0 +1,556 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>⚛️</text></svg>">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Speed of Sound: Comparative Simulation</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            margin: 0;
+            background-color: #0f172a;
+            font-family: 'Segoe UI', sans-serif;
+        }
+
+        /* Custom Flash Animation for Lightning */
+        @keyframes flashAnim {
+            0% {
+                background-color: rgba(255, 255, 255, 0);
+            }
+
+            5% {
+                background-color: rgba(255, 255, 255, 1);
+            }
+
+            10% {
+                background-color: rgba(255, 255, 255, 0.8);
+            }
+
+            15% {
+                background-color: rgba(255, 255, 255, 0);
+            }
+
+            30% {
+                background-color: rgba(255, 255, 255, 0.3);
+            }
+
+            40% {
+                background-color: rgba(255, 255, 255, 0);
+            }
+
+            100% {
+                background-color: rgba(255, 255, 255, 0);
+            }
+        }
+
+        .flash-active {
+            animation: flashAnim 0.8s ease-out;
+        }
+
+        /* Track Styles */
+        .track-steel {
+            background: repeating-linear-gradient(45deg, #334155, #334155 10px, #475569 10px, #475569 20px);
+        }
+
+        .track-water {
+            background: linear-gradient(180deg, #0ea5e9 0%, #0284c7 100%);
+            opacity: 0.8;
+        }
+
+        .track-air {
+            background: radial-gradient(circle, #94a3b8 1px, transparent 1px);
+            background-size: 10px 10px;
+            opacity: 0.5;
+        }
+    </style>
+</head>
+
+<body class="text-slate-200 h-screen flex flex-col overflow-hidden">
+
+    <!-- Header -->
+    <header class="p-4 bg-slate-800 border-b border-slate-700 flex justify-between items-center z-10">
+        <div>
+            <h1 class="text-xl font-bold text-sky-400">Speed of Sound Comparator</h1>
+            <p class="text-xs text-slate-400">Comparing propagation speed in different media</p>
+        </div>
+        <div class="flex gap-2 text-xs">
+            <button onclick="switchTab('race')" id="btn-race"
+                class="bg-sky-600 text-white px-4 py-2 rounded-lg font-bold transition-all">Part A: Media Race</button>
+            <button onclick="switchTab('storm')" id="btn-storm"
+                class="bg-slate-700 text-slate-300 hover:bg-slate-600 px-4 py-2 rounded-lg font-bold transition-all">Part
+                B: Lightning & Thunder</button>
+        </div>
+    </header>
+
+    <!-- Main Content Area -->
+    <main class="flex-grow relative w-full h-full">
+
+        <!-- SECTION A: MEDIA RACE -->
+        <section id="section-race"
+            class="absolute inset-0 p-4 md:p-8 flex flex-col justify-center max-w-5xl mx-auto w-full">
+
+            <div class="bg-slate-800/50 p-6 rounded-xl border border-slate-700 shadow-2xl mb-6">
+                <h2 class="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+                    <span class="text-2xl">ðŸ</span> The Media Race
+                </h2>
+
+                <!-- Steel Track -->
+                <div class="mb-6 relative">
+                    <div class="flex justify-between text-xs uppercase font-bold text-slate-400 mb-1">
+                        <span>Steel (Solid)</span>
+                        <span>~5,960 m/s</span>
+                    </div>
+                    <div class="w-full h-12 track-steel rounded-lg relative overflow-hidden border border-slate-600">
+                        <div id="pulse-steel"
+                            class="absolute left-0 top-0 bottom-0 w-4 bg-red-500 shadow-[0_0_15px_rgba(239,68,68,0.8)] transform -translate-x-full">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Water Track -->
+                <div class="mb-6 relative">
+                    <div class="flex justify-between text-xs uppercase font-bold text-slate-400 mb-1">
+                        <span>Water (Liquid)</span>
+                        <span>~1,480 m/s</span>
+                    </div>
+                    <div class="w-full h-12 bg-slate-900 rounded-lg relative overflow-hidden border border-slate-600">
+                        <div class="absolute inset-0 track-water"></div>
+                        <div id="pulse-water"
+                            class="absolute left-0 top-0 bottom-0 w-4 bg-yellow-400 shadow-[0_0_15px_rgba(250,204,21,0.8)] transform -translate-x-full">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Air Track -->
+                <div class="mb-8 relative">
+                    <div class="flex justify-between text-xs uppercase font-bold text-slate-400 mb-1">
+                        <span>Air (Gas)</span>
+                        <span>~343 m/s</span>
+                    </div>
+                    <div class="w-full h-12 bg-slate-900 rounded-lg relative overflow-hidden border border-slate-600">
+                        <div class="absolute inset-0 track-air"></div>
+                        <div id="pulse-air"
+                            class="absolute left-0 top-0 bottom-0 w-4 bg-white shadow-[0_0_15px_rgba(255,255,255,0.8)] transform -translate-x-full">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Controls -->
+                <div class="flex justify-center">
+                    <button id="startRaceBtn"
+                        class="bg-green-600 hover:bg-green-500 text-white font-bold py-3 px-8 rounded-full shadow-lg transform transition active:scale-95 flex items-center gap-2">
+                        <span>â–¶</span> Start Pulse (with Audio)
+                    </button>
+                </div>
+            </div>
+
+            <div class="text-center text-sm text-slate-400">
+                <p>Sound travels fastest in solids because particles are packed tightly together,<br>allowing vibration
+                    energy to transfer rapidly.</p>
+            </div>
+        </section>
+
+
+        <!-- SECTION B: LIGHTNING STORM -->
+        <section id="section-storm" class="absolute inset-0 hidden flex flex-col">
+
+            <!-- Canvas Visualizer for Storm -->
+            <div class="relative flex-grow bg-slate-900 overflow-hidden group">
+                <!-- Background Scene -->
+                <canvas id="stormCanvas" class="absolute inset-0 z-0"></canvas>
+
+                <!-- Flash Overlay -->
+                <div id="flashOverlay" class="absolute inset-0 pointer-events-none z-10"></div>
+
+                <!-- Distance Marker Visual -->
+                <div
+                    class="absolute bottom-0 left-0 right-0 h-16 bg-gradient-to-t from-black/80 to-transparent z-20 flex items-end justify-center pb-4 pointer-events-none">
+                    <div class="text-white font-mono text-xl" id="distanceVisualLabel">Distance: 0 km</div>
+                </div>
+            </div>
+
+            <!-- Controls -->
+            <div class="bg-slate-800 p-6 border-t border-slate-700 z-30">
+                <div class="max-w-4xl mx-auto flex flex-col md:flex-row gap-8 items-center">
+
+                    <!-- Slider -->
+                    <div class="flex-1 w-full">
+                        <div class="flex justify-between mb-2">
+                            <label class="text-sky-400 font-bold uppercase text-xs tracking-wider">Distance from
+                                Storm</label>
+                            <span id="distValue" class="text-sky-300 font-mono">3.0 km</span>
+                        </div>
+                        <input type="range" id="distSlider" min="0.1" max="10.0" step="0.1" value="3.0"
+                            class="w-full h-2 bg-slate-600 rounded-lg appearance-none cursor-pointer accent-sky-500">
+                        <div class="flex justify-between text-xs text-slate-500 mt-1">
+                            <span>Close (0km)</span>
+                            <span>Far (10km)</span>
+                        </div>
+                    </div>
+
+                    <!-- Timer Display -->
+                    <div class="w-full md:w-48 bg-black/40 p-3 rounded-lg border border-slate-600 text-center">
+                        <div class="text-slate-400 text-[10px] uppercase font-bold">Time to Thunder</div>
+                        <div id="timerDisplay" class="text-3xl font-mono text-yellow-400">0.00s</div>
+                    </div>
+
+                    <!-- Trigger Button -->
+                    <button id="triggerFlashBtn"
+                        class="w-full md:w-auto bg-yellow-500 hover:bg-yellow-400 text-black font-bold py-3 px-8 rounded-xl shadow-lg shadow-yellow-500/20 transform transition active:scale-95 whitespace-nowrap">
+                        âš¡ Create Lightning
+                    </button>
+
+                </div>
+                <p class="text-center text-xs text-slate-500 mt-4">
+                    Based on $t = d / v$ ($v_{air} \approx 343 \text{ m/s}$). Rule of thumb: ~3 seconds per km.
+                </p>
+            </div>
+        </section>
+
+    </main>
+
+    <script>
+        // --- Shared State & Navigation ---
+        let currentTab = 'race';
+
+        function switchTab(tab) {
+            currentTab = tab;
+            const btnRace = document.getElementById('btn-race');
+            const btnStorm = document.getElementById('btn-storm');
+            const secRace = document.getElementById('section-race');
+            const secStorm = document.getElementById('section-storm');
+
+            if (tab === 'race') {
+                secRace.classList.remove('hidden');
+                secStorm.classList.add('hidden');
+                btnRace.className = "bg-sky-600 text-white px-4 py-2 rounded-lg font-bold transition-all shadow-lg shadow-sky-600/20";
+                btnStorm.className = "bg-slate-700 text-slate-300 hover:bg-slate-600 px-4 py-2 rounded-lg font-bold transition-all";
+            } else {
+                secRace.classList.add('hidden');
+                secStorm.classList.remove('hidden');
+                btnRace.className = "bg-slate-700 text-slate-300 hover:bg-slate-600 px-4 py-2 rounded-lg font-bold transition-all";
+                btnStorm.className = "bg-yellow-600 text-white px-4 py-2 rounded-lg font-bold transition-all shadow-lg shadow-yellow-600/20";
+
+                // Init storm visuals if first time
+                initStormCanvas();
+            }
+        }
+
+        // --- PART A: MEDIA RACE LOGIC ---
+        const startRaceBtn = document.getElementById('startRaceBtn');
+        const pulseSteel = document.getElementById('pulse-steel');
+        const pulseWater = document.getElementById('pulse-water');
+        const pulseAir = document.getElementById('pulse-air');
+
+        let isRacing = false;
+
+        startRaceBtn.addEventListener('click', () => {
+            if (isRacing) return; // Prevent double clicks
+            isRacing = true;
+
+            // Initialize Audio Context on user gesture
+            if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+
+            startRaceBtn.disabled = true;
+            startRaceBtn.classList.add('opacity-50', 'cursor-not-allowed');
+
+            // Reset positions
+            pulseSteel.style.transition = 'none';
+            pulseWater.style.transition = 'none';
+            pulseAir.style.transition = 'none';
+            pulseSteel.style.transform = 'translateX(-100%)';
+            pulseWater.style.transform = 'translateX(-100%)';
+            pulseAir.style.transform = 'translateX(-100%)';
+
+            // Force reflow
+            void pulseSteel.offsetWidth;
+
+            // Animate
+            // We scale speeds for visual comprehension.
+            // Real Ratios: Steel (17x), Water (4.3x), Air (1x)
+            // Visual Ratios: Steel (Fast), Water (Medium), Air (Slow)
+            const baseTime = 4000; // 4s for Air
+            const steelTime = baseTime / 15;
+            const waterTime = baseTime / 4.3;
+
+            // Apply transitions
+            // Steel: Super fast
+            pulseSteel.style.transition = `transform ${steelTime}ms linear`;
+            // Water: Medium
+            pulseWater.style.transition = `transform ${waterTime}ms linear`;
+            // Air: Slow base
+            pulseAir.style.transition = `transform ${baseTime}ms linear`;
+
+            requestAnimationFrame(() => {
+                pulseSteel.style.transform = 'translateX(100vw)'; // Move way past container width
+                pulseWater.style.transform = 'translateX(100vw)';
+                pulseAir.style.transform = 'translateX(100vw)';
+            });
+
+            // Schedule Arrival Sounds
+            setTimeout(() => playPulseSound('steel'), steelTime);
+            setTimeout(() => playPulseSound('water'), waterTime);
+            setTimeout(() => playPulseSound('air'), baseTime);
+
+            // Reset button after air finishes
+            setTimeout(() => {
+                isRacing = false;
+                startRaceBtn.disabled = false;
+                startRaceBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+                startRaceBtn.innerText = "â†º Replay Race";
+            }, baseTime + 500);
+        });
+
+
+        // --- PART B: THUNDER LOGIC ---
+        const distSlider = document.getElementById('distSlider');
+        const distValue = document.getElementById('distValue');
+        const distVisual = document.getElementById('distanceVisualLabel');
+        const timerDisplay = document.getElementById('timerDisplay');
+        const triggerBtn = document.getElementById('triggerFlashBtn');
+        const flashOverlay = document.getElementById('flashOverlay');
+        const stormCanvas = document.getElementById('stormCanvas');
+        const ctx = stormCanvas.getContext('2d');
+
+        let distance = 3.0; // km
+        let startTime = 0;
+        let timerInterval;
+        let audioCtx;
+
+        // Sound Generator for Race Pulses
+        function playPulseSound(material) {
+            if (!audioCtx) return;
+
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+
+            const now = audioCtx.currentTime;
+
+            if (material === 'steel') {
+                // Sharp metallic ping (High pitch)
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(1500, now);
+                osc.frequency.exponentialRampToValueAtTime(800, now + 0.1);
+                gain.gain.setValueAtTime(0.2, now);
+                gain.gain.exponentialRampToValueAtTime(0.001, now + 0.15);
+                osc.start(now);
+                osc.stop(now + 0.15);
+            } else if (material === 'water') {
+                // Liquid bloop (Medium pitch)
+                osc.type = 'triangle';
+                osc.frequency.setValueAtTime(600, now);
+                osc.frequency.linearRampToValueAtTime(400, now + 0.15);
+                gain.gain.setValueAtTime(0.2, now);
+                gain.gain.linearRampToValueAtTime(0.001, now + 0.2);
+                osc.start(now);
+                osc.stop(now + 0.2);
+            } else if (material === 'air') {
+                // Soft thud (Low pitch)
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(200, now);
+                gain.gain.setValueAtTime(0.2, now);
+                gain.gain.exponentialRampToValueAtTime(0.001, now + 0.4);
+                osc.start(now);
+                osc.stop(now + 0.4);
+            }
+        }
+
+        // Updated High-Quality Thunder Synthesis
+        function playThunderSound() {
+            if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+
+            const duration = 2.5;
+            const bufferSize = audioCtx.sampleRate * duration;
+            const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+            const data = buffer.getChannelData(0);
+
+            // Generate White Noise (Standard, loud, clear base)
+            for (let i = 0; i < bufferSize; i++) {
+                data[i] = Math.random() * 2 - 1;
+            }
+
+            // Source
+            const noise = audioCtx.createBufferSource();
+            noise.buffer = buffer;
+
+            // Filter chain for "Crack -> Rumble" effect
+            // 1. Highpass to remove extremely low frequencies (DC offset/mud)
+            const highpass = audioCtx.createBiquadFilter();
+            highpass.type = 'highpass';
+            highpass.frequency.value = 40;
+
+            // 2. Lowpass with envelope for the "Crack" fading into "Rumble"
+            // Start high freq (Crack) -> Slide to low freq (Rumble)
+            const lowpass = audioCtx.createBiquadFilter();
+            lowpass.type = 'lowpass';
+            lowpass.frequency.setValueAtTime(1200, audioCtx.currentTime); // Start bright 
+            lowpass.frequency.exponentialRampToValueAtTime(100, audioCtx.currentTime + 0.5); // Fast sweep down
+
+            // Envelope (Volume)
+            const gain = audioCtx.createGain();
+            const now = audioCtx.currentTime;
+
+            // ADSR-ish Volume Envelope
+            gain.gain.setValueAtTime(0, now);
+            gain.gain.linearRampToValueAtTime(1.2, now + 0.05); // Sharp loud attack
+            gain.gain.exponentialRampToValueAtTime(0.01, now + duration); // Long tail decay
+
+            // Connect graph
+            noise.connect(highpass);
+            highpass.connect(lowpass);
+            lowpass.connect(gain);
+            gain.connect(audioCtx.destination);
+
+            noise.start();
+        }
+
+        distSlider.addEventListener('input', (e) => {
+            distance = parseFloat(e.target.value);
+            distValue.innerText = distance.toFixed(1) + " km";
+            distVisual.innerText = "Distance: " + distance.toFixed(1) + " km";
+            drawStormScene(); // Redraw clouds size based on distance
+        });
+
+        triggerBtn.addEventListener('click', () => {
+            if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+
+            // 1. Visual Flash (Immediate)
+            flashOverlay.classList.remove('flash-active');
+            void flashOverlay.offsetWidth; // Trigger reflow
+            flashOverlay.classList.add('flash-active');
+
+            // Draw Lightning Bolt on Canvas
+            drawLightningBolt();
+
+            // 2. Start Timer
+            if (timerInterval) clearInterval(timerInterval);
+            startTime = Date.now();
+            timerDisplay.classList.remove('text-green-400');
+            timerDisplay.classList.add('text-yellow-400');
+
+            const speedOfSound = 0.343; // km/s
+            const delayMs = (distance / speedOfSound) * 1000;
+
+            timerInterval = setInterval(() => {
+                const elapsed = (Date.now() - startTime) / 1000;
+                timerDisplay.innerText = elapsed.toFixed(2) + "s";
+
+                // Stop timer visually if we passed the time (sync fix)
+                if (elapsed * 1000 >= delayMs) {
+                    clearInterval(timerInterval);
+                    timerDisplay.innerText = (delayMs / 1000).toFixed(2) + "s";
+                }
+            }, 50);
+
+            // 3. Schedule Thunder
+            setTimeout(() => {
+                clearInterval(timerInterval);
+                timerDisplay.innerText = (delayMs / 1000).toFixed(2) + "s";
+                timerDisplay.classList.remove('text-yellow-400');
+                timerDisplay.classList.add('text-green-400'); // Done
+
+                playThunderSound();
+
+            }, delayMs);
+        });
+
+        // --- Canvas Visuals ---
+        let width, height;
+
+        function initStormCanvas() {
+            resizeCanvas();
+            window.addEventListener('resize', resizeCanvas);
+            drawStormScene();
+        }
+
+        function resizeCanvas() {
+            if (!stormCanvas.offsetParent) return; // Hidden
+            width = stormCanvas.width = stormCanvas.offsetParent.clientWidth;
+            height = stormCanvas.height = stormCanvas.offsetParent.clientHeight;
+            drawStormScene();
+        }
+
+        function drawStormScene() {
+            if (!ctx) return;
+            ctx.clearRect(0, 0, width, height);
+
+            // Sky Gradient
+            const grad = ctx.createLinearGradient(0, 0, 0, height);
+            grad.addColorStop(0, '#0f172a');
+            grad.addColorStop(1, '#1e293b');
+            ctx.fillStyle = grad;
+            ctx.fillRect(0, 0, width, height);
+
+            // Draw Clouds (Scale based on distance - further = smaller/lower)
+            const scale = Math.max(0.5, 1 - (distance / 15));
+            const cloudY = height * 0.2 + (distance * 10);
+
+            ctx.fillStyle = '#334155';
+            for (let i = 0; i < 5; i++) {
+                let x = (width / 5) * i + (width / 10);
+                let r = (40 + Math.random() * 40) * scale;
+                ctx.beginPath();
+                ctx.arc(x, cloudY, r, 0, Math.PI * 2);
+                ctx.arc(x + r, cloudY - r * 0.5, r * 0.8, 0, Math.PI * 2);
+                ctx.fill();
+            }
+
+            // Draw Ground Landscape
+            ctx.fillStyle = '#020617';
+            ctx.beginPath();
+            ctx.moveTo(0, height);
+            ctx.lineTo(0, height - 50);
+
+            // Procedural Mountains
+            for (let x = 0; x <= width; x += 50) {
+                const h = 50 + Math.random() * 30;
+                ctx.lineTo(x, height - h);
+            }
+            ctx.lineTo(width, height);
+            ctx.fill();
+        }
+
+        function drawLightningBolt() {
+            drawStormScene(); // Clear previous bolt
+
+            const startX = Math.random() * (width * 0.8) + (width * 0.1);
+            const startY = height * 0.2 + (distance * 10); // From clouds
+
+            ctx.strokeStyle = '#fff';
+            ctx.lineWidth = 3 - (distance * 0.2); // Thinner if far away
+            ctx.shadowBlur = 10;
+            ctx.shadowColor = '#fff';
+
+            ctx.beginPath();
+            ctx.moveTo(startX, startY);
+
+            let currentX = startX;
+            let currentY = startY;
+
+            while (currentY < height - 50) {
+                currentX += (Math.random() - 0.5) * 40;
+                currentY += Math.random() * 30 + 10;
+                ctx.lineTo(currentX, currentY);
+            }
+            ctx.stroke();
+            ctx.shadowBlur = 0;
+
+            // Remove bolt after short delay
+            setTimeout(() => {
+                drawStormScene();
+            }, 150);
+        }
+
+        // Initialize Race tab by default
+        switchTab('race');
+
+    </script>
+</body>
+
+</html>

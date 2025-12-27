@@ -4,165 +4,413 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Physics Simulations Index</title>
+    <title>Physics Simulations Hub | ICSE Class 9</title>
+    <link rel="icon"
+        href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>⚛️</text></svg>">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&family=Dancing+Script:wght@700&display=swap"
+        rel="stylesheet">
     <style>
-        :root {
-            --primary-color: #6366f1;
-            --primary-hover: #4f46e5;
-            --bg-color: #0f172a;
-            --card-bg: #1e293b;
-            --text-color: #f8fafc;
-            --text-secondary: #94a3b8;
-        }
-
         body {
-            font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-            background-color: var(--bg-color);
-            color: var(--text-color);
-            margin: 0;
-            padding: 0;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            min-height: 100vh;
+            font-family: 'Outfit', sans-serif;
+            background-color: #0f172a;
+            /* Slate 900 */
+            color: #f8fafc;
+            overflow-x: hidden;
         }
 
-        header {
-            width: 100%;
-            padding: 2rem 0;
-            text-align: center;
-            background: linear-gradient(to right, #1e293b, #0f172a);
-            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
-            margin-bottom: 2rem;
+        /* Glassmorphism utility */
+        .glass-card {
+            background: rgba(30, 41, 59, 0.7);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
         }
 
-        h1 {
-            margin: 0;
-            font-size: 2.5rem;
-            font-weight: 700;
-            background: linear-gradient(to right, #818cf8, #c7d2fe);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-        }
-
-        p.subtitle {
-            color: var(--text-secondary);
-            margin-top: 0.5rem;
-            font-size: 1.1rem;
-        }
-
-        main {
-            width: 90%;
-            max-width: 1200px;
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-            gap: 2rem;
-            padding-bottom: 2rem;
-        }
-
-        .card {
-            background-color: var(--card-bg);
-            border-radius: 1rem;
-            padding: 1.5rem;
-            transition: transform 0.2s ease, box-shadow 0.2s ease;
-            text-decoration: none;
-            color: inherit;
-            border: 1px solid rgba(255, 255, 255, 0.05);
-            display: flex;
-            flex-direction: column;
-        }
-
-        .card:hover {
+        .glass-card:hover {
             transform: translateY(-5px);
-            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
-            border-color: var(--primary-color);
+            background: rgba(30, 41, 59, 0.9);
+            border-color: rgba(56, 189, 248, 0.5);
+            /* Sky 400 */
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5), 0 8px 10px -6px rgba(0, 0, 0, 0.5);
         }
 
-        .card-header {
-            display: flex;
-            align-items: center;
-            margin-bottom: 1rem;
+        /* Animated Background */
+        .bg-anim {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            z-index: -1;
+            background:
+                radial-gradient(circle at 15% 50%, rgba(14, 165, 233, 0.15) 0%, transparent 25%),
+                radial-gradient(circle at 85% 30%, rgba(168, 85, 247, 0.15) 0%, transparent 25%);
         }
 
-        .icon {
-            width: 40px;
-            height: 40px;
-            background-color: rgba(99, 102, 241, 0.2);
-            border-radius: 0.5rem;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            margin-right: 1rem;
-            color: var(--primary-color);
+        .chapter-title {
+            position: relative;
+            display: inline-block;
         }
 
-        .card-title {
-            font-size: 1.25rem;
-            font-weight: 600;
-            margin: 0;
+        .chapter-title::after {
+            content: '';
+            position: absolute;
+            left: 0;
+            bottom: -5px;
+            width: 50px;
+            height: 3px;
+            background: linear-gradient(90deg, #38bdf8, #818cf8);
+            border-radius: 2px;
         }
 
-        .card-description {
-            color: var(--text-secondary);
-            font-size: 0.9rem;
-            line-height: 1.5;
-            flex-grow: 1;
+        /* Creative Signature Glow */
+        .glow-text {
+            text-shadow: 0 0 10px rgba(56, 189, 248, 0.5);
+            animation: pulse-glow 3s infinite alternate;
         }
 
-        .card-footer {
-            margin-top: 1.5rem;
-            padding-top: 1rem;
-            border-top: 1px solid rgba(255, 255, 255, 0.05);
-            display: flex;
-            justify-content: flex-end;
-            color: var(--primary-color);
-            font-weight: 500;
-            font-size: 0.9rem;
-        }
-
-        @media (max-width: 600px) {
-            h1 {
-                font-size: 2rem;
+        @keyframes pulse-glow {
+            0% {
+                text-shadow: 0 0 10px rgba(56, 189, 248, 0.2);
             }
 
-            main {
-                grid-template-columns: 1fr;
+            100% {
+                text-shadow: 0 0 20px rgba(168, 85, 247, 0.6);
             }
         }
     </style>
 </head>
 
-<body>
+<body class="min-h-screen pb-20">
 
-    <header>
-        <h1>Simulations Library</h1>
-        <p class="subtitle">Interactive Physics Simulations for Class 9</p>
+    <div class="bg-anim"></div>
+
+    <!-- Hero Section -->
+    <header class="relative pt-20 pb-16 px-6 text-center">
+        <div class="max-w-4xl mx-auto">
+
+            <!-- Creative Badge -->
+            <div
+                class="inline-flex items-center gap-2 py-1.5 px-4 rounded-full bg-slate-800/80 border border-slate-700 mb-6 backdrop-blur-md shadow-xl group hover:border-sky-500/50 transition-colors cursor-default">
+                <span class="text-xs font-bold text-slate-400 uppercase tracking-wider">Architected by</span>
+                <span
+                    class="text-sm font-bold bg-clip-text text-transparent bg-gradient-to-r from-sky-400 to-purple-400 glow-text font-['Dancing_Script'] tracking-widest text-lg">Priyansh</span>
+            </div>
+
+            <h1
+                class="text-5xl md:text-7xl font-extrabold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-sky-400 via-purple-400 to-pink-400 mb-6">
+                ICSE Class 9 Simulations
+            </h1>
+            <p class="text-lg text-slate-400 max-w-2xl mx-auto leading-relaxed">
+                Explore the laws of physics through interactive experiments. Visualize sound waves, magnetism, and more
+                right in your browser.
+            </p>
+        </div>
     </header>
 
-    <main>
-        <!-- Card for Magnetism -->
-        <a href="Physics-ICSE_Class_9/Magnetism/index.html" class="card">
-            <div class="card-header">
-                <div class="icon">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none"
-                        stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <path d="m6 9 6 6 6-6" />
-                    </svg>
-                </div>
-                <h2 class="card-title">Magnetism</h2>
-            </div>
-            <p class="card-description">
-                Explore magnetic fields, solenoid effects, and interacting magnets. Multiple interactive simulations for
-                Class 9 Physics.
-            </p>
-            <div class="card-footer">
-                Launch Simulation &rarr;
-            </div>
-        </a>
+    <!-- Main Content -->
+    <main class="max-w-7xl mx-auto px-6">
 
-        <!-- Add more cards here as more simulations are added -->
+        <!-- Chapter: Propagation of Sound -->
+        <section class="mb-20">
+            <div class="mb-10 flex items-center gap-4">
+                <div
+                    class="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-500 to-cyan-500 flex items-center justify-center text-2xl shadow-lg shadow-blue-500/20">
+                    🔊</div>
+                <div>
+                    <h2 class="text-3xl font-bold text-white chapter-title">Propagation of Sound Wave</h2>
+                    <p class="text-slate-400 text-sm mt-1">Understanding waves, compression, rarefaction, and
+                        echolocation.</p>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+
+                <!-- Card 1 -->
+                <a href="Physics-ICSE_Class_9/Propogation Of Sound Wave/Vibration & Propagation/index.html"
+                    class="glass-card rounded-2xl p-6 group block relative overflow-hidden">
+                    <div
+                        class="absolute top-0 right-0 p-4 opacity-50 text-6xl group-hover:scale-110 group-hover:opacity-20 transition-transform">
+                        〰️</div>
+                    <h3 class="text-xl font-bold text-sky-300 mb-2 group-hover:text-white transition-colors">Vibration &
+                        Propagation</h3>
+                    <p class="text-sm text-slate-400 mb-4 line-clamp-2">Visualize how sound travels as a longitudinal
+                        wave through particles with compression and rarefaction.</p>
+                    <div
+                        class="flex items-center text-xs font-bold text-sky-500 uppercase tracking-wider group-hover:text-sky-300">
+                        Launch Simulation <span
+                            class="ml-2 transform group-hover:translate-x-1 transition-transform">→</span>
+                    </div>
+                </a>
+
+                <!-- Card 2 -->
+                <a href="Physics-ICSE_Class_9/Propogation Of Sound Wave/Bell Jar/index.html"
+                    class="glass-card rounded-2xl p-6 group block relative overflow-hidden">
+                    <div
+                        class="absolute top-0 right-0 p-4 opacity-50 text-6xl group-hover:scale-110 group-hover:opacity-20 transition-transform">
+                        🔕</div>
+                    <h3 class="text-xl font-bold text-sky-300 mb-2 group-hover:text-white transition-colors">The Bell
+                        Jar Experiment</h3>
+                    <p class="text-sm text-slate-400 mb-4 line-clamp-2">Prove that sound needs a medium using a virtual
+                        vacuum pump and electric bell.</p>
+                    <div
+                        class="flex items-center text-xs font-bold text-sky-500 uppercase tracking-wider group-hover:text-sky-300">
+                        Launch Simulation <span
+                            class="ml-2 transform group-hover:translate-x-1 transition-transform">→</span>
+                    </div>
+                </a>
+
+                <!-- Card 3 -->
+                <a href="Physics-ICSE_Class_9/Propogation Of Sound Wave/Wave Lab/index.html"
+                    class="glass-card rounded-2xl p-6 group block relative overflow-hidden">
+                    <div
+                        class="absolute top-0 right-0 p-4 opacity-50 text-6xl group-hover:scale-110 group-hover:opacity-20 transition-transform">
+                        🎚️</div>
+                    <h3 class="text-xl font-bold text-pink-300 mb-2 group-hover:text-white transition-colors">Wave Lab
+                    </h3>
+                    <p class="text-sm text-slate-400 mb-4 line-clamp-2">Interactive oscilloscope to experiment with
+                        Amplitude, Frequency, Wavelength, and Pitch.</p>
+                    <div
+                        class="flex items-center text-xs font-bold text-pink-500 uppercase tracking-wider group-hover:text-pink-300">
+                        Launch Simulation <span
+                            class="ml-2 transform group-hover:translate-x-1 transition-transform">→</span>
+                    </div>
+                </a>
+
+                <!-- Card 4 -->
+                <a href="Physics-ICSE_Class_9/Propogation Of Sound Wave/Speed Demon/index.html"
+                    class="glass-card rounded-2xl p-6 group block relative overflow-hidden">
+                    <div
+                        class="absolute top-0 right-0 p-4 opacity-50 text-6xl group-hover:scale-110 group-hover:opacity-20 transition-transform">
+                        ⚡</div>
+                    <h3 class="text-xl font-bold text-yellow-300 mb-2 group-hover:text-white transition-colors">Speed
+                        Demon</h3>
+                    <p class="text-sm text-slate-400 mb-4 line-clamp-2">Compare speed of sound in solids, liquids, and
+                        gases. Simulate Lightning & Thunder delay.</p>
+                    <div
+                        class="flex items-center text-xs font-bold text-yellow-500 uppercase tracking-wider group-hover:text-yellow-300">
+                        Launch Simulation <span
+                            class="ml-2 transform group-hover:translate-x-1 transition-transform">→</span>
+                    </div>
+                </a>
+
+                <!-- Card 5 -->
+                <a href="Physics-ICSE_Class_9/Propogation Of Sound Wave/Bat & Boat/index.html"
+                    class="glass-card rounded-2xl p-6 group block relative overflow-hidden">
+                    <div
+                        class="absolute top-0 right-0 p-4 opacity-50 text-6xl group-hover:scale-110 group-hover:opacity-20 transition-transform">
+                        🦇</div>
+                    <h3 class="text-xl font-bold text-purple-300 mb-2 group-hover:text-white transition-colors">SONAR &
+                        Echolocation</h3>
+                    <p class="text-sm text-slate-400 mb-4 line-clamp-2">See how ships use SONAR to find depth and how
+                        bats use echolocation to catch prey.</p>
+                    <div
+                        class="flex items-center text-xs font-bold text-purple-500 uppercase tracking-wider group-hover:text-purple-300">
+                        Launch Simulation <span
+                            class="ml-2 transform group-hover:translate-x-1 transition-transform">→</span>
+                    </div>
+                </a>
+
+            </div>
+        </section>
+
+
+        <!-- Chapter: Magnetism -->
+        <section class="mb-20">
+            <div class="mb-10 flex items-center gap-4">
+                <div
+                    class="w-12 h-12 rounded-xl bg-gradient-to-br from-red-500 to-orange-500 flex items-center justify-center text-2xl shadow-lg shadow-red-500/20">
+                    🧲</div>
+                <div>
+                    <h2 class="text-3xl font-bold text-white chapter-title">Magnetism</h2>
+                    <p class="text-slate-400 text-sm mt-1">Fields, poles, currents, and solenoids.</p>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+
+                <!-- 1. Soft Iron vs Steel -->
+                <a href="Physics-ICSE_Class_9/Magnetism/Soft Iron vs. Steel/index.html"
+                    class="glass-card rounded-2xl p-6 group block relative overflow-hidden">
+                    <div
+                        class="absolute top-0 right-0 p-4 opacity-50 text-6xl group-hover:scale-110 group-hover:opacity-20 transition-transform">
+                        🗝️</div>
+                    <h3 class="text-xl font-bold text-orange-300 mb-2 group-hover:text-white transition-colors">Soft
+                        Iron vs. Steel</h3>
+                    <p class="text-sm text-slate-400 mb-4 line-clamp-2">Compare Retentivity and Magnetic Properties of
+                        different core materials.</p>
+                    <div
+                        class="flex items-center text-xs font-bold text-orange-500 uppercase tracking-wider group-hover:text-orange-300">
+                        Launch Simulation <span
+                            class="ml-2 transform group-hover:translate-x-1 transition-transform">→</span>
+                    </div>
+                </a>
+
+                <!-- 2. Electric Bell -->
+                <a href="Physics-ICSE_Class_9/Magnetism/Electric Bell/index.html"
+                    class="glass-card rounded-2xl p-6 group block relative overflow-hidden">
+                    <div
+                        class="absolute top-0 right-0 p-4 opacity-50 text-6xl group-hover:scale-110 group-hover:opacity-20 transition-transform">
+                        🔔</div>
+                    <h3 class="text-xl font-bold text-orange-300 mb-2 group-hover:text-white transition-colors">Electric
+                        Bell</h3>
+                    <p class="text-sm text-slate-400 mb-4 line-clamp-2">Interactive Make-and-Break circuit mechanism
+                        with sound effects.</p>
+                    <div
+                        class="flex items-center text-xs font-bold text-orange-500 uppercase tracking-wider group-hover:text-orange-300">
+                        Launch Simulation <span
+                            class="ml-2 transform group-hover:translate-x-1 transition-transform">→</span>
+                    </div>
+                </a>
+
+                <!-- 3. Clock Face Rule -->
+                <a href="Physics-ICSE_Class_9/Magnetism/Clock Face Rule/index.html"
+                    class="glass-card rounded-2xl p-6 group block relative overflow-hidden">
+                    <div
+                        class="absolute top-0 right-0 p-4 opacity-50 text-6xl group-hover:scale-110 group-hover:opacity-20 transition-transform">
+                        🕰️</div>
+                    <h3 class="text-xl font-bold text-orange-300 mb-2 group-hover:text-white transition-colors">Clock
+                        Face Rule</h3>
+                    <p class="text-sm text-slate-400 mb-4 line-clamp-2">Determine the magnetic polarity of a solenoid
+                        face based on current direction.</p>
+                    <div
+                        class="flex items-center text-xs font-bold text-orange-500 uppercase tracking-wider group-hover:text-orange-300">
+                        Launch Simulation <span
+                            class="ml-2 transform group-hover:translate-x-1 transition-transform">→</span>
+                    </div>
+                </a>
+
+                <!-- 4. Neutral Point Flipper -->
+                <a href="Physics-ICSE_Class_9/Magnetism/Neutral Point Flipper/index.html"
+                    class="glass-card rounded-2xl p-6 group block relative overflow-hidden">
+                    <div
+                        class="absolute top-0 right-0 p-4 opacity-50 text-6xl group-hover:scale-110 group-hover:opacity-20 transition-transform">
+                        🔀</div>
+                    <h3 class="text-xl font-bold text-orange-300 mb-2 group-hover:text-white transition-colors">Neutral
+                        Point Flipper</h3>
+                    <p class="text-sm text-slate-400 mb-4 line-clamp-2">Visualize how neutral points shift when magnet
+                        orientation changes.</p>
+                    <div
+                        class="flex items-center text-xs font-bold text-orange-500 uppercase tracking-wider group-hover:text-orange-300">
+                        Launch Simulation <span
+                            class="ml-2 transform group-hover:translate-x-1 transition-transform">→</span>
+                    </div>
+                </a>
+
+                <!-- 5. Neutral Point Finder -->
+                <a href="Physics-ICSE_Class_9/Magnetism/Neutral Point Finder/index.html"
+                    class="glass-card rounded-2xl p-6 group block relative overflow-hidden">
+                    <div
+                        class="absolute top-0 right-0 p-4 opacity-50 text-6xl group-hover:scale-110 group-hover:opacity-20 transition-transform">
+                        📍</div>
+                    <h3 class="text-xl font-bold text-orange-300 mb-2 group-hover:text-white transition-colors">Neutral
+                        Point Finder</h3>
+                    <p class="text-sm text-slate-400 mb-4 line-clamp-2">Drag compasses to experimentally locate the
+                        exact points of zero magnetic field.</p>
+                    <div
+                        class="flex items-center text-xs font-bold text-orange-500 uppercase tracking-wider group-hover:text-orange-300">
+                        Launch Simulation <span
+                            class="ml-2 transform group-hover:translate-x-1 transition-transform">→</span>
+                    </div>
+                </a>
+
+                <!-- 6. Dip & Declination -->
+                <a href="Physics-ICSE_Class_9/Magnetism/Dip & Declination/index.html"
+                    class="glass-card rounded-2xl p-6 group block relative overflow-hidden">
+                    <div
+                        class="absolute top-0 right-0 p-4 opacity-50 text-6xl group-hover:scale-110 group-hover:opacity-20 transition-transform">
+                        🌍</div>
+                    <h3 class="text-xl font-bold text-orange-300 mb-2 group-hover:text-white transition-colors">Dip &
+                        Declination</h3>
+                    <p class="text-sm text-slate-400 mb-4 line-clamp-2">Understand the Earth's magnetic elements and
+                        angle of dip.</p>
+                    <div
+                        class="flex items-center text-xs font-bold text-orange-500 uppercase tracking-wider group-hover:text-orange-300">
+                        Launch Simulation <span
+                            class="ml-2 transform group-hover:translate-x-1 transition-transform">→</span>
+                    </div>
+                </a>
+
+                <!-- 7. Directive Property -->
+                <a href="Physics-ICSE_Class_9/Magnetism/Directive Property/index.html"
+                    class="glass-card rounded-2xl p-6 group block relative overflow-hidden">
+                    <div
+                        class="absolute top-0 right-0 p-4 opacity-50 text-6xl group-hover:scale-110 group-hover:opacity-20 transition-transform">
+                        🧭</div>
+                    <h3 class="text-xl font-bold text-orange-300 mb-2 group-hover:text-white transition-colors">
+                        Directive Property</h3>
+                    <p class="text-sm text-slate-400 mb-4 line-clamp-2">See why a freely suspended magnet always aligns
+                        in the North-South direction.</p>
+                    <div
+                        class="flex items-center text-xs font-bold text-orange-500 uppercase tracking-wider group-hover:text-orange-300">
+                        Launch Simulation <span
+                            class="ml-2 transform group-hover:translate-x-1 transition-transform">→</span>
+                    </div>
+                </a>
+
+                <!-- 8. Field Line Tracer -->
+                <a href="Physics-ICSE_Class_9/Magnetism/Field Line Tracer/index.html"
+                    class="glass-card rounded-2xl p-6 group block relative overflow-hidden">
+                    <div
+                        class="absolute top-0 right-0 p-4 opacity-50 text-6xl group-hover:scale-110 group-hover:opacity-20 transition-transform">
+                        ✏️</div>
+                    <h3 class="text-xl font-bold text-orange-300 mb-2 group-hover:text-white transition-colors">Field
+                        Line Tracer</h3>
+                    <p class="text-sm text-slate-400 mb-4 line-clamp-2">Use iron filings or a compass to map out unseen
+                        magnetic field lines.</p>
+                    <div
+                        class="flex items-center text-xs font-bold text-orange-500 uppercase tracking-wider group-hover:text-orange-300">
+                        Launch Simulation <span
+                            class="ml-2 transform group-hover:translate-x-1 transition-transform">→</span>
+                    </div>
+                </a>
+
+                <!-- 9. Intersection Impossible -->
+                <a href="Physics-ICSE_Class_9/Magnetism/Intersection Impossible/index.html"
+                    class="glass-card rounded-2xl p-6 group block relative overflow-hidden">
+                    <div
+                        class="absolute top-0 right-0 p-4 opacity-50 text-6xl group-hover:scale-110 group-hover:opacity-20 transition-transform">
+                        🚫</div>
+                    <h3 class="text-xl font-bold text-orange-300 mb-2 group-hover:text-white transition-colors">
+                        Intersection Impossible</h3>
+                    <p class="text-sm text-slate-400 mb-4 line-clamp-2">A logical proof of why two magnetic field lines
+                        can never cross each other.</p>
+                    <div
+                        class="flex items-center text-xs font-bold text-orange-500 uppercase tracking-wider group-hover:text-orange-300">
+                        Launch Simulation <span
+                            class="ml-2 transform group-hover:translate-x-1 transition-transform">→</span>
+                    </div>
+                </a>
+
+                <!-- 10. Magnetic Induction -->
+                <a href="Physics-ICSE_Class_9/Magnetism/Magnetic Induction/index.html"
+                    class="glass-card rounded-2xl p-6 group block relative overflow-hidden">
+                    <div
+                        class="absolute top-0 right-0 p-4 opacity-50 text-6xl group-hover:scale-110 group-hover:opacity-20 transition-transform">
+                        🧲</div>
+                    <h3 class="text-xl font-bold text-orange-300 mb-2 group-hover:text-white transition-colors">Magnetic
+                        Induction</h3>
+                    <p class="text-sm text-slate-400 mb-4 line-clamp-2">Observe how a strong magnet can induce magnetism
+                        in unmagnetized iron.</p>
+                    <div
+                        class="flex items-center text-xs font-bold text-orange-500 uppercase tracking-wider group-hover:text-orange-300">
+                        Launch Simulation <span
+                            class="ml-2 transform group-hover:translate-x-1 transition-transform">→</span>
+                    </div>
+                </a>
+
+            </div>
+        </section>
 
     </main>
+
+    <footer class="text-center text-slate-600 text-sm py-10 pb-16">
+        <p class="mb-2">Built for ICSE Class 9 Physics • Interactive Learning</p>
+        <p class="text-xs text-slate-700 font-mono">Designed & Engineered by <span
+                class="text-sky-500/80">Priyansh</span> 🚀</p>
+    </footer>
 
 </body>
 

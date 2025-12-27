@@ -1,0 +1,499 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>⚛️</text></svg>">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D Earth Magnetic Field Simulation</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: #000510;
+            color: white;
+            font-family: 'Segoe UI', sans-serif;
+        }
+
+        #canvas-container {
+            width: 100vw;
+            height: 100vh;
+            background: radial-gradient(circle at center, #0f172a 0%, #000000 100%);
+        }
+
+        .ui-panel {
+            position: absolute;
+            bottom: 30px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(15, 23, 42, 0.7);
+            backdrop-filter: blur(12px);
+            padding: 24px;
+            border-radius: 20px;
+            border: 1px solid rgba(56, 189, 248, 0.2);
+            width: 90%;
+            max-width: 550px;
+            text-align: center;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+            z-index: 10;
+        }
+
+        input[type=range] {
+            width: 100%;
+            margin: 15px 0;
+            accent-color: #38bdf8;
+            cursor: pointer;
+        }
+
+        .legend {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            background: rgba(0, 0, 0, 0.6);
+            padding: 15px;
+            border-radius: 12px;
+            font-size: 14px;
+            pointer-events: none;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            z-index: 10;
+        }
+
+        .dot {
+            height: 12px;
+            width: 12px;
+            border-radius: 50%;
+            display: inline-block;
+            margin-right: 10px;
+            vertical-align: middle;
+        }
+
+        .red-dot {
+            background-color: #ff3333;
+            box-shadow: 0 0 8px #ff3333;
+        }
+
+        .blue-dot {
+            background-color: #3366ff;
+            box-shadow: 0 0 8px #3366ff;
+        }
+
+        .green-dot {
+            background-color: #22c55e;
+        }
+
+        .yellow-dot {
+            background-color: #fbbf24;
+        }
+    </style>
+    <!-- Import Three.js as a module -->
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+                "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+            }
+        }
+    </script>
+</head>
+
+<body>
+
+    <div id="canvas-container"></div>
+
+    <div class="legend">
+        <h3 class="font-bold mb-3 text-lg text-blue-200 border-b border-gray-600 pb-2">Sanket (Key)</h3>
+        <div class="flex items-center mb-2"><span class="dot green-dot"></span>Earth Axis (Vertical)</div>
+        <div class="flex items-center mb-2"><span class="dot red-dot"></span>Magnetic North (Red)</div>
+        <div class="flex items-center mb-2"><span class="dot blue-dot"></span>Magnetic South (Blue)</div>
+        <div class="flex items-center"><span class="dot yellow-dot"></span>Magnetic Field Lines</div>
+    </div>
+
+    <div class="ui-panel">
+        <div class="flex justify-between items-center mb-2 text-blue-100">
+            <span class="text-sm font-medium">South Pole (-90Â°)</span>
+            <label class="font-bold text-xl tracking-wide">Compass Position</label>
+            <span class="text-sm font-medium">North Pole (+90Â°)</span>
+        </div>
+
+        <input type="range" id="latSlider" min="-90" max="90" value="0" step="1">
+
+        <div class="mt-3 text-lg font-medium text-cyan-300 transition-all duration-300" id="statusText">
+            Stithi: Equator (Needle Horizontal hai)
+        </div>
+        <p class="text-xs text-gray-400 mt-2">Slider ko move karke compass ko poles par le jayein</p>
+    </div>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+        // --- Configuration ---
+        const TILT_ANGLE = 17 * (Math.PI / 180); // 17 degrees tilt
+        const EARTH_RADIUS = 10;
+        const MAGNET_LENGTH = 12;
+        const MAGNET_WIDTH = 3.8;
+
+        // --- Scene Setup ---
+        const container = document.getElementById('canvas-container');
+        const scene = new THREE.Scene();
+
+        const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
+        camera.position.set(32, 18, 32);
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(window.devicePixelRatio);
+        renderer.toneMapping = THREE.ACESFilmicToneMapping;
+        renderer.outputColorSpace = THREE.SRGBColorSpace;
+        container.appendChild(renderer.domElement);
+
+        const controls = new OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+        controls.dampingFactor = 0.05;
+        controls.autoRotate = true;
+        controls.autoRotateSpeed = 0.8;
+
+        // --- Lights ---
+        const ambientLight = new THREE.AmbientLight(0x404040, 3);
+        scene.add(ambientLight);
+
+        const dirLight = new THREE.DirectionalLight(0xffffff, 2.5);
+        dirLight.position.set(20, 15, 20);
+        scene.add(dirLight);
+
+        const backLight = new THREE.DirectionalLight(0x60a5fa, 1.5);
+        backLight.position.set(-20, 0, -20);
+        scene.add(backLight);
+
+        // --- Helper: Advanced Continent Texture Generator ---
+        function createRealisticEarthTexture() {
+            const canvas = document.createElement('canvas');
+            canvas.width = 2048;
+            canvas.height = 1024;
+            const ctx = canvas.getContext('2d');
+
+            // 1. Transparent Background for Ocean
+            ctx.clearRect(0, 0, 2048, 1024);
+
+            // 2. Draw Continents with Fractal Noise Look
+            ctx.fillStyle = '#1e293b'; // Base shadow
+
+            // Helper to draw rough shapes
+            function drawJaggedLand(cx, cy, rx, ry, roughness, seed, color) {
+                ctx.beginPath();
+                const points = 60; // More points for jaggedness
+                for (let i = 0; i <= points; i++) {
+                    const angle = (i / points) * Math.PI * 2;
+                    // Fractal-ish noise
+                    const n1 = Math.sin(angle * 3 + seed);
+                    const n2 = Math.cos(angle * 10 + seed);
+                    const rVar = 1 + (n1 * 0.1) + (n2 * 0.05 * roughness);
+
+                    const x = cx + Math.cos(angle) * rx * rVar;
+                    const y = cy + Math.sin(angle) * ry * rVar;
+                    if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+                }
+                ctx.closePath();
+                ctx.fillStyle = color;
+                ctx.fill();
+
+                // Add an inner layer for detail (mountains/variation)
+                ctx.strokeStyle = 'rgba(0,0,0,0.1)';
+                ctx.stroke();
+            }
+
+            const landColor = '#3f6212'; // Swamp/Forest Green
+            const landColor2 = '#365314'; // Darker
+
+            // North America
+            drawJaggedLand(500, 250, 150, 100, 2, 1.5, landColor);
+            drawJaggedLand(450, 200, 80, 80, 1.5, 3.2, landColor2); // Detail
+
+            // South America
+            drawJaggedLand(650, 650, 100, 180, 1.5, 4.1, landColor);
+
+            // Europe
+            drawJaggedLand(1100, 250, 80, 60, 2.5, 5.5, landColor);
+
+            // Asia (Huge)
+            drawJaggedLand(1450, 300, 220, 150, 2, 6.1, landColor);
+            drawJaggedLand(1500, 250, 100, 80, 1, 0.1, landColor2); // Siberia area
+
+            // Africa
+            drawJaggedLand(1100, 500, 130, 150, 1.2, 2.2, landColor);
+
+            // Australia
+            drawJaggedLand(1700, 750, 80, 60, 1.5, 8.8, landColor);
+
+            // Antarctica (White-ish)
+            drawJaggedLand(1024, 980, 800, 60, 1.1, 9.9, '#e2e8f0');
+
+            // Greenland
+            drawJaggedLand(750, 100, 60, 30, 2, 0.5, '#e2e8f0');
+
+            const tex = new THREE.CanvasTexture(canvas);
+            tex.anisotropy = renderer.capabilities.getMaxAnisotropy();
+            return tex;
+        }
+
+        function createCloudTexture() {
+            const canvas = document.createElement('canvas');
+            canvas.width = 1024;
+            canvas.height = 512;
+            const ctx = canvas.getContext('2d');
+            ctx.clearRect(0, 0, 1024, 512);
+
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
+
+            for (let i = 0; i < 300; i++) {
+                const x = Math.random() * 1024;
+                const y = Math.random() * 512;
+                const r = Math.random() * 20 + 5;
+                ctx.beginPath();
+                ctx.arc(x, y, r, 0, Math.PI * 2);
+                ctx.fill();
+            }
+
+            return new THREE.CanvasTexture(canvas);
+        }
+
+        // --- 1. The Earth ---
+        const earthGroup = new THREE.Group();
+        scene.add(earthGroup);
+
+        // A. Inner Glass Ocean (Highly Transparent)
+        const earthGeo = new THREE.SphereGeometry(EARTH_RADIUS, 64, 64);
+        const earthMat = new THREE.MeshPhysicalMaterial({
+            color: 0x1d4ed8,        // Royal Blue
+            metalness: 0.1,
+            roughness: 0.05,        // Very smooth glass
+            transmission: 0.92,     // 92% light passes through (Crystal Clear)
+            thickness: 0.5,
+            opacity: 0.3,           // Low base opacity
+            transparent: true,
+            side: THREE.FrontSide
+        });
+        const earthMesh = new THREE.Mesh(earthGeo, earthMat);
+        earthGroup.add(earthMesh);
+
+        // B. Realistic Continents Layer
+        const landTexture = createRealisticEarthTexture();
+        const landGeo = new THREE.SphereGeometry(EARTH_RADIUS + 0.05, 64, 64);
+        const landMat = new THREE.MeshStandardMaterial({
+            map: landTexture,
+            transparent: true,
+            opacity: 1.0,           // Solid land
+            roughness: 0.9,         // Matte finish for land
+            metalness: 0.1,
+            side: THREE.FrontSide,
+        });
+        const landMesh = new THREE.Mesh(landGeo, landMat);
+        earthGroup.add(landMesh);
+
+        // C. Cloud Layer (Moving)
+        const cloudTexture = createCloudTexture();
+        const cloudGeo = new THREE.SphereGeometry(EARTH_RADIUS + 0.3, 64, 64);
+        const cloudMat = new THREE.MeshBasicMaterial({
+            map: cloudTexture,
+            transparent: true,
+            opacity: 0.2,
+            side: THREE.FrontSide,
+            blending: THREE.AdditiveBlending
+        });
+        const cloudMesh = new THREE.Mesh(cloudGeo, cloudMat);
+        earthGroup.add(cloudMesh);
+
+        // D. Atmosphere Halo (Outer Glow)
+        const atmoGeo = new THREE.SphereGeometry(EARTH_RADIUS + 2.0, 64, 64);
+        const atmoMat = new THREE.MeshBasicMaterial({
+            color: 0x3b82f6,
+            transparent: true,
+            opacity: 0.08,
+            side: THREE.BackSide,
+            blending: THREE.AdditiveBlending
+        });
+        const atmoMesh = new THREE.Mesh(atmoGeo, atmoMat);
+        earthGroup.add(atmoMesh);
+
+        // --- 2. Geographic Axis ---
+        const axisGeo = new THREE.CylinderGeometry(0.06, 0.06, EARTH_RADIUS * 2.8, 8);
+        const axisMat = new THREE.MeshBasicMaterial({ color: 0x4ade80, opacity: 0.4, transparent: true });
+        const axis = new THREE.Mesh(axisGeo, axisMat);
+        earthGroup.add(axis);
+
+        // --- 3. The Magnet (Internal) ---
+        const magnetGroup = new THREE.Group();
+        magnetGroup.rotation.z = TILT_ANGLE;
+        earthGroup.add(magnetGroup);
+
+        // Construction
+        const magnetGeoBase = new THREE.BoxGeometry(MAGNET_WIDTH, MAGNET_LENGTH / 2, MAGNET_WIDTH);
+
+        // Super Bright Emissive Materials
+        const matBlue = new THREE.MeshStandardMaterial({
+            color: 0x2563eb,
+            roughness: 0.3,
+            metalness: 0.7,
+            emissive: 0x3b82f6,
+            emissiveIntensity: 1.5 // Very Bright
+        });
+        const matRed = new THREE.MeshStandardMaterial({
+            color: 0xdc2626,
+            roughness: 0.3,
+            metalness: 0.7,
+            emissive: 0xef4444,
+            emissiveIntensity: 1.5 // Very Bright
+        });
+
+        const topPart = new THREE.Mesh(magnetGeoBase, matBlue); // South Pole (Geo North)
+        topPart.position.y = MAGNET_LENGTH / 4;
+
+        const botPart = new THREE.Mesh(magnetGeoBase, matRed); // North Pole (Geo South)
+        botPart.position.y = -MAGNET_LENGTH / 4;
+
+        magnetGroup.add(topPart);
+        magnetGroup.add(botPart);
+
+        // --- 4. Magnetic Field Lines ---
+        const fieldMaterial = new THREE.LineBasicMaterial({
+            color: 0xfde047, // Yellow-300
+            opacity: 0.7,
+            transparent: true
+        });
+
+        function createFieldLine(startPoint) {
+            const points = [];
+            let currentPos = startPoint.clone();
+            const m = new THREE.Vector3(0, -1, 0);
+
+            let steps = 0;
+            while (steps < 400) {
+                points.push(currentPos.clone());
+                const r = currentPos.length();
+                if (r < 2.0 || r > 35) break;
+
+                const rHat = currentPos.clone().normalize();
+                const mDotR = m.dot(rHat);
+                const B = rHat.clone().multiplyScalar(3 * mDotR).sub(m);
+
+                const stepSize = Math.max(0.1, r * 0.06);
+                currentPos.add(B.normalize().multiplyScalar(stepSize));
+
+                if (currentPos.y > MAGNET_LENGTH / 2 - 0.5 && Math.abs(currentPos.x) < MAGNET_WIDTH) break;
+                steps++;
+            }
+            const curve = new THREE.CatmullRomCurve3(points);
+            const geometry = new THREE.BufferGeometry().setFromPoints(curve.getPoints(60));
+            return new THREE.Line(geometry, fieldMaterial);
+        }
+
+        const rings = [2.5, 4.5, 6.5];
+        rings.forEach(radius => {
+            const count = 10;
+            for (let i = 0; i < count; i++) {
+                const angle = (i / count) * Math.PI * 2;
+                const startX = Math.cos(angle) * radius;
+                const startZ = Math.sin(angle) * radius;
+                const startY = -MAGNET_LENGTH / 2 - 0.5; // Start at Red (Bottom)
+
+                const line = createFieldLine(new THREE.Vector3(startX, startY, startZ));
+                magnetGroup.add(line);
+            }
+        });
+
+        // --- 5. Compass Needle ---
+        const compassGroup = new THREE.Group();
+        scene.add(compassGroup);
+
+        const needleMatRed = new THREE.MeshStandardMaterial({
+            color: 0xff0000, metalness: 0.6, roughness: 0.2, emissive: 0xaa0000, emissiveIntensity: 0.5
+        });
+        const needleMatBlue = new THREE.MeshStandardMaterial({
+            color: 0x0044ff, metalness: 0.6, roughness: 0.2, emissive: 0x0000aa, emissiveIntensity: 0.5
+        });
+
+        const nPoleGeo = new THREE.ConeGeometry(0.5, 2, 16);
+        const nPole = new THREE.Mesh(nPoleGeo, needleMatRed);
+        nPole.position.y = 1;
+
+        const sPoleGeo = new THREE.ConeGeometry(0.5, 2, 16);
+        const sPole = new THREE.Mesh(sPoleGeo, needleMatBlue);
+        sPole.rotation.x = Math.PI;
+        sPole.position.y = -1;
+
+        const needleObj = new THREE.Group();
+        needleObj.add(nPole);
+        needleObj.add(sPole);
+
+        const pivotObj = new THREE.Mesh(new THREE.SphereGeometry(0.7), new THREE.MeshStandardMaterial({ color: 0x333333 }));
+        needleObj.add(pivotObj);
+
+        needleObj.rotation.x = Math.PI / 2;
+        compassGroup.add(needleObj);
+
+        // --- Interaction ---
+        const slider = document.getElementById('latSlider');
+        const statusText = document.getElementById('statusText');
+
+        function updateCompass() {
+            const lat = parseInt(slider.value);
+            const phi = (90 - lat) * (Math.PI / 180);
+            const theta = 0;
+
+            // Position
+            const r = EARTH_RADIUS + 1.5;
+            const x = r * Math.sin(phi) * Math.cos(theta);
+            const z = r * Math.sin(phi) * Math.sin(theta);
+            const y = r * Math.cos(phi);
+
+            compassGroup.position.set(x, y, z);
+
+            // Field Calculation
+            const posVec = new THREE.Vector3(x, y, z);
+            const posLocal = posVec.clone().applyAxisAngle(new THREE.Vector3(0, 0, 1), -TILT_ANGLE);
+            const m = new THREE.Vector3(0, -1, 0);
+            const rHat = posLocal.clone().normalize();
+            const mDotR = m.dot(rHat);
+            const B_local = rHat.clone().multiplyScalar(3 * mDotR).sub(m);
+            const B_world = B_local.applyAxisAngle(new THREE.Vector3(0, 0, 1), TILT_ANGLE);
+
+            // Align
+            const target = compassGroup.position.clone().add(B_world);
+            compassGroup.lookAt(target);
+
+            // Update Text
+            let text = `Latitude: ${lat}Â° - `;
+            if (Math.abs(lat) < 10) text += "Equator (Needle Horizontal hai)";
+            else if (Math.abs(lat) > 80) text += "Pole (Needle Vertical/Khadi hai)";
+            else text += "Needle Jhuk rahi hai (Dipping)";
+            statusText.innerText = text;
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            controls.update();
+
+            // Animate clouds
+            cloudMesh.rotation.y += 0.0005;
+
+            renderer.render(scene, camera);
+        }
+
+        slider.addEventListener('input', () => {
+            controls.autoRotate = false;
+            updateCompass();
+        });
+
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        updateCompass();
+        animate();
+    </script>
+</body>
+
+</html>

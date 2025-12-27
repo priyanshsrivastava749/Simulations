@@ -1,0 +1,293 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>⚛️</text></svg>">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Freely Suspended Magnet</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: #1e293b;
+            font-family: 'Segoe UI', sans-serif;
+        }
+
+        canvas {
+            display: block;
+            touch-action: none;
+        }
+
+        /* touch-action: none prevents scrolling while dragging */
+
+        .compass-label {
+            position: absolute;
+            font-weight: bold;
+            color: rgba(255, 255, 255, 0.3);
+            font-size: 2rem;
+            pointer-events: none;
+            user-select: none;
+        }
+    </style>
+</head>
+
+<body class="text-slate-200 h-screen w-screen relative">
+
+    <!-- Canvas -->
+    <canvas id="simCanvas" class="absolute inset-0 z-10 cursor-grab active:cursor-grabbing"></canvas>
+
+    <!-- Compass Labels (HTML overlay for crisp text) -->
+    <div id="labelN" class="compass-label top-4 left-1/2 transform -translate-x-1/2 text-red-500/50">N</div>
+    <div id="labelS" class="compass-label bottom-4 left-1/2 transform -translate-x-1/2 text-blue-500/50">S</div>
+    <div id="labelE" class="compass-label right-4 top-1/2 transform -translate-y-1/2">E</div>
+    <div id="labelW" class="compass-label left-4 top-1/2 transform -translate-y-1/2">W</div>
+
+    <!-- UI Overlay -->
+    <div class="absolute inset-0 pointer-events-none z-20 flex flex-col justify-between p-6">
+        <div>
+            <h1 class="text-2xl font-bold text-sky-400 drop-shadow-md">Freely Suspended Magnet</h1>
+            <p class="text-slate-400 text-sm max-w-md drop-shadow-md mt-1">
+                Drag or flick the magnet to spin it. Watch how it settles.
+            </p>
+        </div>
+
+        <!-- Info Popup (Visible when settled) -->
+        <div id="infoPopup"
+            class="mx-auto bg-slate-800/90 backdrop-blur border border-sky-500/30 p-4 rounded-xl shadow-2xl max-w-sm transition-opacity duration-500 opacity-0 transform translate-y-4">
+            <div class="flex items-start gap-3">
+                <span class="text-2xl">ðŸ§­</span>
+                <div>
+                    <h3 class="font-bold text-sky-400 text-sm uppercase mb-1">Directive Property</h3>
+                    <p class="text-xs text-slate-300 leading-relaxed">
+                        A freely suspended magnet always comes to rest in the
+                        <strong class="text-white">Geographic North-South</strong> direction.
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('simCanvas');
+        const ctx = canvas.getContext('2d');
+        const infoPopup = document.getElementById('infoPopup');
+
+        // --- Physics State ---
+        let width, height, centerX, centerY;
+        let angle = Math.PI / 4; // Start at random angle (45 degrees)
+        let velocity = 0;
+        let isDragging = false;
+        let lastMouseAngle = 0;
+        let lastTime = 0;
+        let settleTimer = 0;
+
+        // Configuration
+        const MAGNET_WIDTH = 60;
+        const MAGNET_LENGTH = 200;
+        // FIX: Target Angle should be 0. 
+        // In our drawing logic, angle 0 corresponds to the magnet standing vertical with Red (North) at the top.
+        const TARGET_ANGLE = 0;
+        const DAMPING = 0.985; // Air resistance
+        const SPRING_STRENGTH = 0.005; // Magnetic field strength
+
+        // --- Interaction Handlers ---
+
+        function getAngleFromCenter(x, y) {
+            return Math.atan2(y - centerY, x - centerX);
+        }
+
+        function startDrag(e) {
+            isDragging = true;
+            velocity = 0;
+            // Hide popup immediately on interaction
+            infoPopup.classList.remove('opacity-100', 'translate-y-0');
+            infoPopup.classList.add('opacity-0', 'translate-y-4');
+
+            const x = e.touches ? e.touches[0].clientX : e.clientX;
+            const y = e.touches ? e.touches[0].clientY : e.clientY;
+            lastMouseAngle = getAngleFromCenter(x, y) - angle;
+        }
+
+        function moveDrag(e) {
+            if (!isDragging) return;
+            const x = e.touches ? e.touches[0].clientX : e.clientX;
+            const y = e.touches ? e.touches[0].clientY : e.clientY;
+
+            const currentMouseAngle = getAngleFromCenter(x, y);
+            const newAngle = currentMouseAngle - lastMouseAngle;
+
+            // Calculate velocity based on drag speed for "flick" effect
+            velocity = newAngle - angle;
+            angle = newAngle;
+        }
+
+        function endDrag() {
+            isDragging = false;
+            // Cap max velocity to prevent spinning too crazy
+            if (velocity > 0.5) velocity = 0.5;
+            if (velocity < -0.5) velocity = -0.5;
+        }
+
+        window.addEventListener('mousedown', startDrag);
+        window.addEventListener('mousemove', moveDrag);
+        window.addEventListener('mouseup', endDrag);
+
+        window.addEventListener('touchstart', startDrag);
+        window.addEventListener('touchmove', moveDrag);
+        window.addEventListener('touchend', endDrag);
+
+        // --- Resize ---
+        function resize() {
+            width = canvas.width = window.innerWidth;
+            height = canvas.height = window.innerHeight;
+            centerX = width / 2;
+            centerY = height / 2;
+        }
+        window.addEventListener('resize', resize);
+        resize();
+
+        // --- Core Animation Loop ---
+
+        function animate() {
+            ctx.clearRect(0, 0, width, height);
+
+            // 1. Draw Background Compass Rose
+            drawCompassRose();
+
+            // 2. Physics Update
+            if (!isDragging) {
+                // Restoring Torque: T = -k * sin(theta - target)
+                let displacement = angle - TARGET_ANGLE;
+                let torque = -SPRING_STRENGTH * Math.sin(displacement);
+
+                velocity += torque;
+                velocity *= DAMPING;
+                angle += velocity;
+
+                // Check for Settling
+                // If velocity is tiny and angle is close to North (0)
+                const normalizedAngle = (angle % (Math.PI * 2));
+                const dist = Math.abs(Math.sin(normalizedAngle - TARGET_ANGLE)); // 0 when aligned
+
+                if (Math.abs(velocity) < 0.001 && dist < 0.05) {
+                    settleTimer++;
+                    if (settleTimer > 60) { // 1 second of stillness
+                        infoPopup.classList.remove('opacity-0', 'translate-y-4');
+                        infoPopup.classList.add('opacity-100', 'translate-y-0');
+                    }
+                } else {
+                    settleTimer = 0;
+                }
+            }
+
+            // 3. Draw Thread
+            ctx.beginPath();
+            ctx.moveTo(centerX, 0); // From ceiling
+            ctx.lineTo(centerX, centerY);
+            ctx.lineWidth = 2;
+            ctx.strokeStyle = '#e2e8f0'; // Silk thread color
+            ctx.setLineDash([2, 2]); // Twist effect
+            ctx.stroke();
+            ctx.setLineDash([]);
+
+            // 4. Draw Magnet
+            ctx.save();
+            ctx.translate(centerX, centerY);
+            ctx.rotate(angle);
+
+            // Draw Shadow
+            ctx.shadowColor = 'rgba(0,0,0,0.5)';
+            ctx.shadowBlur = 20;
+            ctx.shadowOffsetY = 20;
+
+            // -- North Pole (Red) --
+            // Drawn on the "negative Y" side relative to rotation center.
+            // At 0 rotation, this is UP.
+            ctx.fillStyle = '#ef4444';
+            ctx.fillRect(-MAGNET_WIDTH / 2, -MAGNET_LENGTH / 2, MAGNET_WIDTH, MAGNET_LENGTH / 2);
+
+            // South Half (Blue)
+            // Drawn on the "positive Y" side.
+            // At 0 rotation, this is DOWN.
+            ctx.fillStyle = '#3b82f6';
+            ctx.fillRect(-MAGNET_WIDTH / 2, 0, MAGNET_WIDTH, MAGNET_LENGTH / 2);
+
+            // Glossy Reflection
+            ctx.fillStyle = 'rgba(255,255,255,0.2)';
+            ctx.fillRect(-MAGNET_WIDTH / 2 + 5, -MAGNET_LENGTH / 2, 10, MAGNET_LENGTH);
+
+            // Labels (Rotate with magnet)
+            ctx.shadowBlur = 0; // Reset shadow for text
+            ctx.shadowOffsetY = 0;
+            ctx.fillStyle = 'white';
+            ctx.font = 'bold 24px sans-serif';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+
+            // N Label (Top/Red)
+            ctx.save();
+            ctx.translate(0, -MAGNET_LENGTH / 4);
+            ctx.rotate(-Math.PI / 2); // Make text upright relative to magnet length
+            ctx.fillText("N", 0, 0);
+            ctx.restore();
+
+            // S Label (Bottom/Blue)
+            ctx.save();
+            ctx.translate(0, MAGNET_LENGTH / 4);
+            ctx.rotate(-Math.PI / 2);
+            ctx.fillText("S", 0, 0);
+            ctx.restore();
+
+            // Center Dot (Pivot)
+            ctx.fillStyle = '#94a3b8';
+            ctx.beginPath();
+            ctx.arc(0, 0, 6, 0, Math.PI * 2);
+            ctx.fill();
+
+            ctx.restore();
+
+            requestAnimationFrame(animate);
+        }
+
+        function drawCompassRose() {
+            ctx.save();
+            ctx.translate(centerX, centerY);
+
+            ctx.beginPath();
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
+            ctx.lineWidth = 1;
+
+            // Large Circle
+            ctx.arc(0, 0, Math.min(width, height) * 0.35, 0, Math.PI * 2);
+            ctx.stroke();
+
+            // Crosshairs
+            ctx.beginPath();
+            ctx.moveTo(0, -Math.min(width, height) * 0.35);
+            ctx.lineTo(0, Math.min(width, height) * 0.35);
+            ctx.moveTo(-Math.min(width, height) * 0.35, 0);
+            ctx.lineTo(Math.min(width, height) * 0.35, 0);
+            ctx.stroke();
+
+            // Subtle diagonal ticks
+            ctx.beginPath();
+            const r = Math.min(width, height) * 0.05;
+            for (let i = 0; i < 4; i++) {
+                ctx.rotate(Math.PI / 4);
+                ctx.moveTo(r, 0);
+                ctx.lineTo(r * 2, 0);
+                ctx.rotate(Math.PI / 4);
+            }
+            ctx.stroke();
+
+            ctx.restore();
+        }
+
+        animate();
+
+    </script>
+</body>
+
+</html>

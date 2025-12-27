@@ -1,0 +1,417 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>⚛️</text></svg>">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sound Wave Simulation: Compression & Rarefaction</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: #0f172a;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        canvas {
+            display: block;
+        }
+
+        .control-panel {
+            background: rgba(30, 41, 59, 0.9);
+            backdrop-filter: blur(8px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+    </style>
+</head>
+
+<body class="text-slate-200 h-screen w-screen relative">
+
+    <!-- Canvas Layer -->
+    <canvas id="simCanvas" class="absolute inset-0 z-0"></canvas>
+
+    <!-- Overlay UI -->
+    <div class="absolute inset-0 pointer-events-none z-10 flex flex-col justify-between p-6">
+
+        <!-- Header -->
+        <div class="pointer-events-auto">
+            <h1 class="text-2xl font-bold text-sky-400 mb-2">Sound Wave Physics</h1>
+            <p class="text-sm text-slate-400 max-w-md">
+                Strike the tuning fork to observe how sound travels through air.
+                Sound is a <strong>longitudinal wave</strong> consisting of compressions (high density) and rarefactions
+                (low density).
+            </p>
+        </div>
+
+        <!-- Controls -->
+        <div class="control-panel pointer-events-auto p-4 rounded-xl shadow-2xl max-w-md w-full mx-auto md:mx-0">
+            <div class="flex gap-4 items-center mb-4">
+                <button id="strikeBtn"
+                    class="bg-sky-500 hover:bg-sky-400 text-white font-bold py-2 px-6 rounded-lg transition-all transform active:scale-95 shadow-lg shadow-sky-500/20">
+                    Strike Fork ðŸ”¨
+                </button>
+                <div class="flex-1">
+                    <label class="text-xs text-sky-300 font-semibold uppercase tracking-wider block mb-1">View
+                        Mode</label>
+                    <div class="flex bg-slate-800 rounded-lg p-1 border border-slate-700">
+                        <button id="particleMode"
+                            class="flex-1 py-1 px-2 text-sm rounded bg-slate-600 text-white shadow transition-all">Particles</button>
+                        <button id="waveMode"
+                            class="flex-1 py-1 px-2 text-sm rounded hover:bg-slate-700 text-slate-400 transition-all">Wave
+                            Graph</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-2 gap-4 text-xs text-slate-400 border-t border-slate-700 pt-3">
+                <div class="flex items-center gap-2">
+                    <div class="w-3 h-3 rounded-full bg-sky-500"></div>
+                    <span>Compression (High Pressure)</span>
+                </div>
+                <div class="flex items-center gap-2">
+                    <div class="w-3 h-3 rounded-full border border-slate-500"></div>
+                    <span>Rarefaction (Low Pressure)</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('simCanvas');
+        const ctx = canvas.getContext('2d');
+
+        // State
+        let width, height;
+        let particles = [];
+        let time = 0;
+        let isVibrating = false;
+        let amplitude = 0;
+        let showWave = false; // false = particles, true = wave overlay
+
+        // Constants
+        const NUM_PARTICLES_X = 60; // Horizontal resolution
+        const NUM_PARTICLES_Y = 25; // Vertical resolution
+        const FREQUENCY = 0.15;
+        const WAVELENGTH = 150;
+        const WAVE_SPEED = 4;
+        const DECAY_RATE = 0.992;
+
+        // DOM Elements
+        const strikeBtn = document.getElementById('strikeBtn');
+        const particleModeBtn = document.getElementById('particleMode');
+        const waveModeBtn = document.getElementById('waveMode');
+
+        // --- Class Definitions ---
+
+        class TuningFork {
+            constructor() {
+                this.x = 100;
+                this.baseWidth = 20;
+                this.height = 140;
+                this.tineLength = 90;
+                this.tineOffset = 0;
+            }
+
+            update() {
+                // Tine vibration logic
+                if (amplitude > 0.01) {
+                    this.tineOffset = Math.sin(time * 0.8) * (amplitude * 0.3);
+                } else {
+                    this.tineOffset = 0;
+                }
+            }
+
+            draw(ctx, centerY) {
+                ctx.save();
+                ctx.translate(this.x, centerY);
+
+                const stemH = 60;
+                const tineW = 12;
+                const baseW = 30;
+
+                // Color based on vibration intensity
+                const intensity = Math.min(amplitude / 20, 1);
+                ctx.fillStyle = `rgb(${150 + intensity * 100}, ${160 + intensity * 50}, ${170 + intensity * 50})`;
+                ctx.strokeStyle = ctx.fillStyle;
+
+                // Draw Stem
+                ctx.fillRect(-5, stemH - 10, 10, 60);
+
+                // Draw Base (U shape connector)
+                ctx.beginPath();
+                ctx.moveTo(-baseW / 2, 0);
+                ctx.quadraticCurveTo(0, stemH, baseW / 2, 0);
+                ctx.lineWidth = 10;
+                ctx.stroke();
+
+                // Draw Tines (Animated)
+                // Left Tine
+                ctx.save();
+                ctx.rotate(this.tineOffset * 0.15);
+                ctx.fillRect(-baseW / 2 - tineW / 2, -this.tineLength, tineW, this.tineLength);
+                ctx.restore();
+
+                // Right Tine
+                ctx.save();
+                ctx.rotate(-this.tineOffset * 0.15);
+                ctx.fillRect(baseW / 2 - tineW / 2, -this.tineLength, tineW, this.tineLength);
+                ctx.restore();
+
+                // Draw "Sound Source" Pulse visual near fork
+                if (amplitude > 5) {
+                    ctx.beginPath();
+                    ctx.arc(0, -40, 40 + (Math.sin(time) * 5), -Math.PI / 2 - 1, -Math.PI / 2 + 1);
+                    ctx.strokeStyle = `rgba(56, 189, 248, ${amplitude / 100})`;
+                    ctx.lineWidth = 4;
+                    ctx.stroke();
+                }
+
+                ctx.restore();
+            }
+        }
+
+        class Particle {
+            constructor(bx, by) {
+                this.baseX = bx;
+                this.baseY = by;
+                this.x = bx;
+                this.y = by;
+                this.size = 2;
+                // Add some random jitter to base positions so it looks more like organic gas
+                this.jitterX = (Math.random() - 0.5) * 15;
+                this.jitterY = (Math.random() - 0.5) * 15;
+            }
+
+            update(waveAmp) {
+                // Physics: Longitudinal Wave Displacement
+                // Displacement s(x,t) = A * cos(kx - wt)
+                // But we want displacement parallel to propagation (x-axis)
+
+                // Calculate phase based on distance from source
+                // We offset x by the fork position approx (150px)
+                const dist = this.baseX - 150;
+
+                if (dist > 0) {
+                    // Create a moving envelope for the "pulse" if we wanted a single pulse,
+                    // but here we model a continuous tone that decays.
+
+                    const k = (2 * Math.PI) / WAVELENGTH; // Wave number
+                    const omega = FREQUENCY; // Angular frequencyish
+
+                    // The displacement calculation
+                    // We use the global 'amplitude' variable which decays over time
+                    // Math.sin(k * dist - time) creates the traveling wave rightwards
+                    const displacement = waveAmp * Math.sin(k * dist - time * 0.2);
+
+                    this.x = this.baseX + this.jitterX + displacement;
+                    this.y = this.baseY + this.jitterY;
+                } else {
+                    // Behind the fork, just jitter
+                    this.x = this.baseX + this.jitterX;
+                    this.y = this.baseY + this.jitterY;
+                }
+            }
+
+            draw(ctx) {
+                ctx.beginPath();
+                ctx.fillStyle = '#94a3b8'; // Slate 400
+                ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+                ctx.fill();
+            }
+        }
+
+        // --- Initialization ---
+
+        const tuningFork = new TuningFork();
+
+        function init() {
+            resize();
+            createParticles();
+            window.addEventListener('resize', () => {
+                resize();
+                createParticles();
+            });
+        }
+
+        function resize() {
+            width = canvas.width = window.innerWidth;
+            height = canvas.height = window.innerHeight;
+        }
+
+        function createParticles() {
+            particles = [];
+            // Start creating particles to the right of the fork
+            const startX = 180;
+            const spacingX = (width - startX) / NUM_PARTICLES_X;
+            const spacingY = height / NUM_PARTICLES_Y;
+
+            for (let i = 0; i < NUM_PARTICLES_X; i++) {
+                for (let j = 0; j < NUM_PARTICLES_Y; j++) {
+                    const x = startX + i * spacingX;
+                    const y = (j * spacingY) + (spacingY / 2); // Center vertically
+                    particles.push(new Particle(x, y));
+                }
+            }
+        }
+
+        // --- Interaction Handlers ---
+
+        strikeBtn.addEventListener('click', () => {
+            amplitude = 60; // Max amplitude (pixel displacement)
+            isVibrating = true;
+
+            // Visual feedback on button
+            strikeBtn.innerText = "Struck! ðŸ”Š";
+            setTimeout(() => strikeBtn.innerText = "Strike Fork ðŸ”¨", 1000);
+        });
+
+        particleModeBtn.addEventListener('click', () => {
+            showWave = false;
+            updateModeButtons();
+        });
+
+        waveModeBtn.addEventListener('click', () => {
+            showWave = true;
+            updateModeButtons();
+        });
+
+        function updateModeButtons() {
+            if (showWave) {
+                waveModeBtn.classList.replace('text-slate-400', 'text-white');
+                waveModeBtn.classList.replace('hover:bg-slate-700', 'bg-slate-600');
+                particleModeBtn.classList.remove('bg-slate-600', 'text-white');
+                particleModeBtn.classList.add('text-slate-400');
+            } else {
+                particleModeBtn.classList.add('bg-slate-600', 'text-white');
+                particleModeBtn.classList.remove('text-slate-400');
+                waveModeBtn.classList.replace('text-white', 'text-slate-400');
+                waveModeBtn.classList.replace('bg-slate-600', 'hover:bg-slate-700');
+            }
+        }
+
+        // --- Core Loop ---
+
+        function drawWaveOverlay(centerY) {
+            ctx.beginPath();
+            ctx.strokeStyle = '#38bdf8'; // Sky 400
+            ctx.lineWidth = 4;
+
+            const startX = 180;
+            const k = (2 * Math.PI) / WAVELENGTH;
+
+            ctx.moveTo(startX, centerY);
+
+            // Draw Sine Wave representing Pressure
+            // Note: In sound, Pressure is 90 deg out of phase with Displacement
+            // But usually, we visualize the Crest as Compression.
+            // Compression happens where displacement slope is negative.
+            // Let's draw -Slope of displacement to map Crest -> Compression.
+
+            for (let x = startX; x < width; x += 5) {
+                const dist = x - 150;
+                // We use the same phase logic as particles
+                // Displacement D = A * sin(kx - wt)
+                // Pressure P ~ -dD/dx ~ -cos(kx - wt)
+                // We map this to y-axis
+
+                const waveY = centerY + (amplitude * 1.5) * -Math.cos(k * dist - time * 0.2);
+                ctx.lineTo(x, waveY);
+            }
+            ctx.stroke();
+
+            // Fill area under curve for effect
+            ctx.lineTo(width, centerY);
+            ctx.lineTo(startX, centerY);
+            ctx.fillStyle = 'rgba(56, 189, 248, 0.1)';
+            ctx.fill();
+
+            // Draw Equilibrium Line
+            ctx.beginPath();
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
+            ctx.lineWidth = 1;
+            ctx.setLineDash([5, 5]);
+            ctx.moveTo(startX, centerY);
+            ctx.lineTo(width, centerY);
+            ctx.stroke();
+            ctx.setLineDash([]);
+        }
+
+        function drawLabels(centerY) {
+            if (amplitude < 10) return; // Hide labels if wave is too weak
+
+            ctx.font = "12px sans-serif";
+            ctx.textAlign = "center";
+
+            const startX = 180;
+            const k = (2 * Math.PI) / WAVELENGTH;
+
+            // Scan across screen to find peaks (Compression) and troughs (Rarefaction)
+            for (let x = startX; x < width; x += 10) {
+                const dist = x - 150;
+                // Value of our Pressure wave function
+                const val = -Math.cos(k * dist - time * 0.2);
+
+                // If close to peak (1)
+                if (val > 0.98) {
+                    ctx.fillStyle = "rgba(56, 189, 248, 0.8)";
+                    ctx.fillText("Compression", x, centerY - amplitude * 2 - 10);
+
+                    // Draw guide line
+                    ctx.beginPath();
+                    ctx.moveTo(x, centerY - amplitude * 2);
+                    ctx.lineTo(x, centerY + amplitude * 2);
+                    ctx.strokeStyle = "rgba(56, 189, 248, 0.1)";
+                    ctx.stroke();
+                }
+
+                // If close to trough (-1)
+                if (val < -0.98) {
+                    ctx.fillStyle = "rgba(148, 163, 184, 0.5)"; // Slate 400
+                    ctx.fillText("Rarefaction", x, centerY + amplitude * 2 + 20);
+                }
+            }
+        }
+
+        function animate() {
+            ctx.clearRect(0, 0, width, height);
+
+            // Update Physics
+            time += 1;
+            if (amplitude > 0) {
+                amplitude *= DECAY_RATE; // Energy loss
+            }
+            if (amplitude < 0.1) amplitude = 0;
+
+            const centerY = height / 2;
+
+            // Draw Tuning Fork
+            tuningFork.update();
+            tuningFork.draw(ctx, centerY);
+
+            if (showWave) {
+                // Wave Mode
+                drawWaveOverlay(centerY);
+                drawLabels(centerY);
+            } else {
+                // Particle Mode
+                particles.forEach(p => {
+                    p.update(amplitude);
+                    p.draw(ctx);
+                });
+                // Draw labels on top of particles too for clarity
+                drawLabels(centerY);
+            }
+
+            requestAnimationFrame(animate);
+        }
+
+        // Start
+        init();
+        animate();
+
+    </script>
+</body>
+
+</html>

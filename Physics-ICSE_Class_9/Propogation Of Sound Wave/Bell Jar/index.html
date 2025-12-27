@@ -1,0 +1,437 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>⚛️</text></svg>">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bell Jar Experiment: Sound Requires a Medium</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: #1e293b;
+            font-family: 'Segoe UI', sans-serif;
+        }
+
+        canvas {
+            display: block;
+        }
+
+        .glass-panel {
+            background: rgba(15, 23, 42, 0.8);
+            backdrop-filter: blur(8px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        /* Custom Range Slider */
+        input[type=range] {
+            -webkit-appearance: none;
+            width: 100%;
+            background: transparent;
+        }
+
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            height: 20px;
+            width: 20px;
+            border-radius: 50%;
+            background: #38bdf8;
+            margin-top: -8px;
+            cursor: pointer;
+            box-shadow: 0 0 10px rgba(56, 189, 248, 0.5);
+        }
+
+        input[type=range]::-webkit-slider-runnable-track {
+            width: 100%;
+            height: 4px;
+            background: #475569;
+            border-radius: 2px;
+        }
+    </style>
+</head>
+
+<body class="text-slate-200 h-screen w-screen relative">
+
+    <canvas id="canvas" class="absolute inset-0 z-0"></canvas>
+
+    <!-- UI Overlay -->
+    <div class="absolute inset-0 pointer-events-none z-10 flex flex-col justify-between p-6">
+
+        <!-- Header -->
+        <div class="pointer-events-auto max-w-lg">
+            <h1 class="text-3xl font-bold text-sky-400 mb-2">Bell Jar Experiment</h1>
+            <p class="text-slate-300 text-sm leading-relaxed shadow-black drop-shadow-md">
+                Sound is a mechanical wave that needs a medium (like air) to travel.
+                Use the vacuum pump to remove the air and observe what happens to the sound.
+            </p>
+        </div>
+
+        <!-- Controls -->
+        <div class="glass-panel pointer-events-auto p-6 rounded-xl shadow-2xl max-w-md w-full mx-auto md:mx-0 mb-4">
+
+            <div class="flex justify-between items-end mb-2">
+                <label class="text-sky-300 font-bold uppercase tracking-wider text-xs">Vacuum Pump Control</label>
+                <span id="pressureLabel" class="text-2xl font-mono font-bold text-white">100%</span>
+            </div>
+
+            <input type="range" id="pressureSlider" min="0" max="100" value="100" step="1" class="mb-4">
+
+            <div class="flex justify-between text-xs text-slate-400 mb-6">
+                <span>Vacuum (0 atm)</span>
+                <span>Normal Air (1 atm)</span>
+            </div>
+
+            <div class="flex items-center gap-4 border-t border-slate-700 pt-4">
+                <button id="toggleBellBtn"
+                    class="flex-1 bg-red-500 hover:bg-red-600 text-white font-bold py-3 px-4 rounded-lg transition-colors shadow-lg shadow-red-500/20">
+                    Stop Bell ðŸ”•
+                </button>
+            </div>
+
+            <div id="statusMessage" class="mt-4 text-center text-sm font-semibold text-yellow-400 min-h-[20px]">
+                <!-- Dynamic Status Message -->
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+
+        // --- State ---
+        let width, height;
+        let airPressure = 1.0; // 0.0 to 1.0
+        let isRinging = true;
+        let time = 0;
+        let particles = [];
+        let waves = [];
+
+        // --- Constants ---
+        const BELL_X_OFFSET = 0;
+        const BELL_Y_OFFSET = -50;
+        const JAR_WIDTH = 260;
+        const JAR_HEIGHT = 380;
+
+        // --- DOM ---
+        const slider = document.getElementById('pressureSlider');
+        const pressureLabel = document.getElementById('pressureLabel');
+        const toggleBtn = document.getElementById('toggleBellBtn');
+        const statusMsg = document.getElementById('statusMessage');
+
+        // --- Classes ---
+
+        class SoundWave {
+            constructor(x, y) {
+                this.x = x;
+                this.y = y;
+                this.radius = 40;
+                this.alpha = 1.0;
+                this.speed = 3;
+            }
+
+            update() {
+                this.radius += this.speed;
+                // Fade out based on distance AND air pressure
+                // If air pressure is low, waves start weaker and fade faster
+                this.alpha -= 0.015;
+            }
+
+            draw(ctx) {
+                if (this.alpha <= 0) return;
+
+                // Opacity is heavily dependent on air pressure
+                const visibleAlpha = this.alpha * Math.pow(airPressure, 1.5);
+
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+                ctx.strokeStyle = `rgba(56, 189, 248, ${visibleAlpha})`;
+                ctx.lineWidth = 4 * airPressure; // Line gets thinner in vacuum
+                ctx.stroke();
+            }
+        }
+
+        class AirParticle {
+            constructor() {
+                this.reset();
+                // Randomize initial position
+                this.x = (Math.random() - 0.5) * (JAR_WIDTH - 20) + width / 2;
+                this.y = (Math.random() - 0.5) * (JAR_HEIGHT - 20) + height / 2 + BELL_Y_OFFSET;
+            }
+
+            reset() {
+                this.active = true;
+                this.vx = (Math.random() - 0.5) * 2;
+                this.vy = (Math.random() - 0.5) * 2;
+                this.size = Math.random() * 1.5 + 0.5;
+            }
+
+            update(centerX, centerY) {
+                // Determine bounds of the jar
+                const left = centerX - JAR_WIDTH / 2 + 10;
+                const right = centerX + JAR_WIDTH / 2 - 10;
+                const top = centerY + BELL_Y_OFFSET - JAR_HEIGHT / 2 + 10;
+                const bottom = centerY + BELL_Y_OFFSET + JAR_HEIGHT / 2 - 10;
+
+                this.x += this.vx;
+                this.y += this.vy;
+
+                // Bounce off jar walls
+                if (this.x < left || this.x > right) this.vx *= -1;
+                if (this.y < top || this.y > bottom) this.vy *= -1;
+
+                // Jitter effect when sound is ringing
+                if (isRinging) {
+                    this.x += (Math.random() - 0.5) * 2 * airPressure;
+                    this.y += (Math.random() - 0.5) * 2 * airPressure;
+                }
+            }
+
+            draw(ctx) {
+                if (!this.active) return;
+                ctx.fillStyle = `rgba(148, 163, 184, ${0.4 + (airPressure * 0.3)})`;
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+                ctx.fill();
+            }
+        }
+
+        // --- Initialization ---
+
+        function init() {
+            resize();
+            // Create a pool of particles
+            for (let i = 0; i < 400; i++) {
+                particles.push(new AirParticle());
+            }
+            window.addEventListener('resize', resize);
+        }
+
+        function resize() {
+            width = canvas.width = window.innerWidth;
+            height = canvas.height = window.innerHeight;
+            // Re-center particles simply by resetting them over time or letting them flow
+        }
+
+        // --- Drawing Functions ---
+
+        function drawBell(centerX, centerY) {
+            const bellX = centerX;
+            const bellY = centerY + BELL_Y_OFFSET;
+
+            ctx.save();
+            ctx.translate(bellX, bellY);
+
+            // -- The Support Stand --
+            ctx.fillStyle = '#64748b';
+            ctx.fillRect(-5, -160, 10, 100); // Rod
+
+            // -- The Electric Circuit Box --
+            ctx.fillStyle = '#334155';
+            ctx.fillRect(-30, -180, 60, 40);
+            ctx.strokeStyle = '#94a3b8';
+            ctx.strokeRect(-30, -180, 60, 40);
+
+            // -- Wires -- 
+            ctx.beginPath();
+            ctx.strokeStyle = '#f59e0b'; // Amber copper wire
+            ctx.lineWidth = 2;
+            ctx.moveTo(-10, -140);
+            ctx.lineTo(-20, -140);
+            ctx.lineTo(-20, -80); // To Hammer
+            ctx.stroke();
+
+            // -- The Gong (Bell Cup) --
+            ctx.beginPath();
+            ctx.arc(0, 0, 50, Math.PI, 0); // Semi-circle top
+            ctx.lineTo(50, 20); // Flare out
+            ctx.lineTo(-50, 20);
+            ctx.closePath();
+
+            // Metallic Gradient
+            const grad = ctx.createLinearGradient(-50, -20, 50, 20);
+            grad.addColorStop(0, '#fcd34d'); // Gold light
+            grad.addColorStop(0.5, '#d97706'); // Gold dark
+            grad.addColorStop(1, '#fcd34d');
+            ctx.fillStyle = grad;
+            ctx.fill();
+            ctx.lineWidth = 1;
+            ctx.strokeStyle = '#b45309';
+            ctx.stroke();
+
+            // -- The Hammer (Striker) --
+            // Logic: Continues moving even if vacuum!
+            let hammerAngle = 0;
+            if (isRinging) {
+                // High frequency vibration
+                hammerAngle = Math.sin(time * 0.8) * 0.4;
+            }
+
+            ctx.save();
+            ctx.translate(-55, -40); // Pivot point
+            ctx.rotate(hammerAngle);
+
+            // Arm
+            ctx.beginPath();
+            ctx.moveTo(0, 0);
+            ctx.lineTo(15, 40);
+            ctx.strokeStyle = '#94a3b8';
+            ctx.lineWidth = 4;
+            ctx.stroke();
+
+            // Head
+            ctx.beginPath();
+            ctx.arc(15, 40, 8, 0, Math.PI * 2);
+            ctx.fillStyle = '#475569';
+            ctx.fill();
+            ctx.restore();
+
+            ctx.restore();
+        }
+
+        function drawJar(centerX, centerY) {
+            const jarX = centerX;
+            const jarY = centerY + BELL_Y_OFFSET;
+
+            ctx.save();
+            ctx.translate(jarX, jarY);
+
+            // Draw Base Plate
+            ctx.fillStyle = '#1e293b';
+            ctx.beginPath();
+            ctx.ellipse(0, JAR_HEIGHT / 2 + 10, JAR_WIDTH / 2 + 20, 20, 0, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.strokeStyle = '#475569';
+            ctx.lineWidth = 4;
+            ctx.stroke();
+
+            // Draw Glass Dome (Back)
+            ctx.beginPath();
+            ctx.moveTo(-JAR_WIDTH / 2, JAR_HEIGHT / 2); // Bottom Left
+            ctx.lineTo(-JAR_WIDTH / 2, -JAR_HEIGHT / 2 + 60); // Top Left start curve
+            ctx.bezierCurveTo(-JAR_WIDTH / 2, -JAR_HEIGHT / 2 - 40, JAR_WIDTH / 2, -JAR_HEIGHT / 2 - 40, JAR_WIDTH / 2, -JAR_HEIGHT / 2 + 60); // Dome top
+            ctx.lineTo(JAR_WIDTH / 2, JAR_HEIGHT / 2); // Bottom Right
+
+            // Glass Style
+            ctx.fillStyle = 'rgba(203, 213, 225, 0.05)'; // Very subtle fill
+            ctx.fill();
+            ctx.lineWidth = 4;
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
+            ctx.stroke();
+
+            // Reflections (Front)
+            ctx.beginPath();
+            ctx.moveTo(JAR_WIDTH / 2 - 20, -JAR_HEIGHT / 2 + 40);
+            ctx.bezierCurveTo(JAR_WIDTH / 2 - 10, -JAR_HEIGHT / 2 + 80, JAR_WIDTH / 2 - 10, 0, JAR_WIDTH / 2 - 15, 50);
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
+            ctx.lineWidth = 8;
+            ctx.stroke();
+
+            ctx.restore();
+        }
+
+        function drawPumpConnection(centerX, centerY) {
+            const jarBottomY = centerY + BELL_Y_OFFSET + JAR_HEIGHT / 2 + 10;
+
+            // Tube going down
+            ctx.fillStyle = '#334155';
+            ctx.fillRect(centerX - 10, jarBottomY, 20, height - jarBottomY);
+
+            // Tube details
+            ctx.strokeStyle = '#475569';
+            ctx.beginPath();
+            ctx.moveTo(centerX - 10, jarBottomY);
+            ctx.lineTo(centerX - 10, height);
+            ctx.moveTo(centerX + 10, jarBottomY);
+            ctx.lineTo(centerX + 10, height);
+            ctx.stroke();
+        }
+
+        // --- Interaction Logic ---
+
+        slider.addEventListener('input', (e) => {
+            const val = parseInt(e.target.value);
+            airPressure = val / 100;
+            pressureLabel.innerText = val + '%';
+
+            updateStatus();
+        });
+
+        toggleBtn.addEventListener('click', () => {
+            isRinging = !isRinging;
+            toggleBtn.innerText = isRinging ? "Stop Bell ðŸ”•" : "Ring Bell ðŸ””";
+            toggleBtn.className = isRinging
+                ? "flex-1 bg-red-500 hover:bg-red-600 text-white font-bold py-3 px-4 rounded-lg transition-colors shadow-lg shadow-red-500/20"
+                : "flex-1 bg-green-500 hover:bg-green-600 text-white font-bold py-3 px-4 rounded-lg transition-colors shadow-lg shadow-green-500/20";
+        });
+
+        function updateStatus() {
+            if (airPressure < 0.05) {
+                statusMsg.innerText = "âš ï¸ Vacuum Created: No Medium for Sound Propagation";
+                statusMsg.className = "mt-4 text-center text-sm font-bold text-red-400 animate-pulse";
+            } else if (airPressure < 0.4) {
+                statusMsg.innerText = "Low Pressure: Sound is faint";
+                statusMsg.className = "mt-4 text-center text-sm font-semibold text-yellow-400";
+            } else {
+                statusMsg.innerText = "Normal Pressure: Sound travels freely";
+                statusMsg.className = "mt-4 text-center text-sm font-semibold text-green-400";
+            }
+        }
+
+        // --- Main Loop ---
+
+        function animate() {
+            ctx.clearRect(0, 0, width, height);
+            time += 1;
+
+            const centerX = width / 2;
+            const centerY = height / 2;
+
+            drawPumpConnection(centerX, centerY);
+
+            // 1. Draw Background Particles (Inside Jar)
+            // We only draw a percentage of particles based on airPressure
+            const activeParticleCount = Math.floor(particles.length * airPressure);
+
+            for (let i = 0; i < particles.length; i++) {
+                if (i < activeParticleCount) {
+                    particles[i].active = true;
+                    particles[i].update(centerX, centerY);
+                    particles[i].draw(ctx);
+                } else {
+                    particles[i].active = false;
+                }
+            }
+
+            // 2. Draw Bell (Behind front glass, on top of back glass)
+            drawBell(centerX, centerY);
+
+            // 3. Sound Waves Generation
+            if (isRinging && time % 20 === 0) { // Emit wave every 20 frames
+                waves.push(new SoundWave(centerX, centerY + BELL_Y_OFFSET));
+            }
+
+            // 4. Update & Draw Waves
+            for (let i = waves.length - 1; i >= 0; i--) {
+                waves[i].update();
+                waves[i].draw(ctx);
+                if (waves[i].alpha <= -0.1 || waves[i].radius > 400) {
+                    waves.splice(i, 1);
+                }
+            }
+
+            // 5. Draw Jar (Glass overlay)
+            drawJar(centerX, centerY);
+
+            requestAnimationFrame(animate);
+        }
+
+        init();
+        updateStatus();
+        animate();
+
+    </script>
+</body>
+
+</html>
